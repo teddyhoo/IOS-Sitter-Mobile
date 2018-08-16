@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+	<dict>
+		<key>Title</key>
+		<string>CLIENT INFO</string>
+		<key>clientName</key>
+		<string>{60,50}</string>
+		<key>email</key>
+		<string>{60,90}</string>
+		<key>cellphone</key>
+		<string>{60,130}</string>
+		<key>street1</key>
+		<string>{60,180}</string>
+		<key>street2</key>
+		<string>{60,200}</string>
+		<key>city</key>
+		<string>{60,218}</string>
+		<key>state</key>
+		<string>{60,236}</string>
+		<key>zip</key>
+		<string>{60,254}</string>
+	</dict>
+	<dict>
+		<key>Title</key>
+		<string>ALT INFO</string>
+		<key>firstName2</key>
+		<string>{30,50}</string>
+		<key>lastName2</key>
+		<string>{130,50}</string>
+		<key>email2</key>
+		<string>{30,70}</string>
+		<key>workphone</key>
+		<string>{30,90}</string>
+		<key>homePhone</key>
+		<string>{30,110}</string>
+	</dict>
+	<dict>
+		<key>Title</key>
+		<string>VET INFO</string>
+		<key>vetName</key>
+		<string>{30,40}</string>
+		<key>vetPhone</key>
+		<string>{30,60}</string>
+		<key>vetStreet1</key>
+		<string>{30,90}</string>
+		<key>vetStreet2</key>
+		<string>{30,110}</string>
+		<key>vetCity</key>
+		<string>{30,130}</string>
+		<key>vetState</key>
+		<string>{130,130}</string>
+		<key>vetZip</key>
+		<string>{190,130}</string>
+		<key>clinicName</key>
+		<string>{30,160}</string>
+		<key>clinicPhone</key>
+		<string>{30,180}</string>
+		<key>clinicStreet1</key>
+		<string>{30,200}</string>
+		<key>clinicCity</key>
+		<string>{30,220}</string>
+		<key>clinicZip</key>
+		<string>{150,220}</string>
+	</dict>
+	<dict>
+		<key>Title</key>
+		<string>ALARM INFO</string>
+		<key>alarmCompany</key>
+		<string>{30,40}</string>
+		<key>alarmCompanyPhone</key>
+		<string>{30,60}</string>
+		<key>garageGateCode</key>
+		<string>{30,140}</string>
+		<key>alarmInfo</key>
+		<string>{30,220}</string>
+	</dict>
+	<dict>
+		<key>Title</key>
+		<string>LOCATIONS OF PET SUPPLIES</string>
+		<key>leashLocation</key>
+		<string>{30,90}</string>
+		<key>foodLocation</key>
+		<string>{30,170}</string>
+		<key>parkingInfo</key>
+		<string>{30,230}</string>
+	</dict>
+</array>
+</plist>

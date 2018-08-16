@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+	<dict>
+		<key>airedale</key>
+		<string>airedale</string>
+		<key>Airedale</key>
+		<string>airedale</string>
+		<key>aire dale</key>
+		<string>airedale</string>
+		<key>bull mastiff</key>
+		<string>bull-mastiff</string>
+		<key>Bull mastiff</key>
+		<string>bull-mastiff</string>
+		<key>bull Mastiff</key>
+		<string>bull-mastiff</string>
+		<key>Bull Mastiff</key>
+		<string>bull-mastiff</string>
+		<key>Bullmastiff</key>
+		<string>bull-mastiff</string>
+		<key>cavalier</key>
+		<string>cavalier</string>
+		<key>Cavalier</key>
+		<string>cavalier</string>
+		<key>King Charles Cavalier</key>
+		<string>cavalier</string>
+		<key>english setter</key>
+		<string>english-setter</string>
+		<key>English Setter</key>
+		<string>english-setter</string>
+		<key>English setter</key>
+		<string>english-setter</string>
+		<key>englishsetter</key>
+		<string>english-setter</string>
+		<key>french bulldog</key>
+		<string>french-bulldog</string>
+		<key>whippet</key>
+		<string>whippet</string>
+		<key>bedlington</key>
+		<string>bedlington</string>
+		<key>fox hound</key>
+		<string>fox-hound</string>
+		<key>basenji</key>
+		<string>basenji</string>
+		<key>black labrador</key>
+		<string>labrador-black</string>
+		<key>pug</key>
+		<string>pug</string>
+		<key>beagle</key>
+		<string>beagle</string>
+		<key>bull terrier</key>
+		<string>bull-terrier</string>
+		<key>cocker spaniel</key>
+		<string>cocker-spaniel</string>
+		<key>sheepdog</key>
+		<string>english-sheepdog</string>
+		<key>jack russell terrier</key>
+		<string>russell-terrier</string>
+		<key>yorkie</key>
+		<string>yorkshire-terrier</string>
+		<key>yorkshire terrier</key>
+		<string>yorkshire-terrier</string>
+		<key>bulldog</key>
+		<string>english-bulldog</string>
+		<key>ridgeback</key>
+		<string>rhodesian-ridgeback</string>
+		<key>white lab</key>
+		<string>labrador-white</string>
+		<key>labrador-golden</key>
+		<string>labrador-golden</string>
+		<key>golden labrador</key>
+		<string>labrador-golden</string>
+		<key>lab</key>
+		<string>labrador-golden</string>
+		<key>labrador golden</key>
+		<string>labrador-golden</string>
+		<key>golden lab</key>
+		<string>labrador-golden</string>
+		<key>lab golden</key>
+		<string>labrador-golden</string>
+		<key>chocolate lab</key>
+		<string>chocolate-lab</string>
+		<key>Chesapeake Bay Retriever
+</key>
+		<string>chesapeake-bay-retriever</string>
+		<key>Doberman Pinscher</key>
+		<string></string>
+		<key>Pit Bull</key>
+		<string></string>
+		<key>Rhodesian Ridgeback</key>
+		<string>rhodesian-ridgeback</string>
+		<key>Saint Bernard</key>
+		<string></string>
+		<key>Cat</key>
+		<string></string>
+	</dict>
+</array>
+</plist>
