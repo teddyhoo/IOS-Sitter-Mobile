@@ -632,7 +632,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 											 NSJSONReadingMutableLeaves
 																			  error:&error];
 				
-				NSLog(@"Response dic: %@",responseDic);
+				//NSLog(@"Response dic: %@",responseDic);
 
 			
 				if([eventStr isEqualToString:@"arrived"]) {
@@ -784,7 +784,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 																															 error:&error];
 															   
 															   
-															   NSLog(@"Response dic: %@",responseDic);
+															   //NSLog(@"Response dic: %@",responseDic);
 															   
 															   currentVisit.visitReportUploadStatus = @"SUCCESS";
 															   [currentVisit writeVisitDataToFile];
@@ -862,7 +862,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 																   currentVisit.visitReportUploadStatus = @"SUCCESS";
 																   [currentVisit writeVisitDataToFile];
 																   
-																   NSLog(@"Response dic: %@",responseDic);
+																   //NSLog(@"Response dic: %@",responseDic);
 
 
 																   
@@ -1015,7 +1015,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
                                              NSJSONWritingPrettyPrinted|
                                              NSJSONReadingMutableLeaves
                                                                               error:&error];
-				NSLog(@"Response dic: %@",responseDic);
+				//NSLog(@"Response dic: %@",responseDic);
             }
         }
 	}];
@@ -1319,7 +1319,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 														 [_lastRequest addObject:dateString2];
 														NSString *errorCodeResponse = [self checkErrorCodes:data];
 
-														 NSLog(@"Raw data: %@, errorResponseCode: %@", data, _pollingFailReasonCode);
+														 //NSLog(@"Raw data: %@, errorResponseCode: %@", data, _pollingFailReasonCode);
 														 if(error == nil) {
 															 if (responseDic != NULL) {
 																 [_lastRequest addObject:@"OK"];
@@ -1331,7 +1331,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 																																	error:&error];
 																	 
 																	 
-																	 NSLog(@"response: %@", responseDic);
+																	// NSLog(@"response: %@", responseDic);
 																	 [self parseDataResponseMulti:responseJSON];
 																	 [self updateCoordinateData];
 																	 
@@ -2959,13 +2959,13 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 																	     NSJSONReadingMutableLeaves
 																							  error:&error];
 													
-													NSLog(@"Response dic: %@",responseDic);
+													///NSLog(@"Response dic: %@",responseDic);
 
 												} else {
 													
 													NSString *errorCodeResponse = [self checkErrorCodes:data];
-													NSLog(@"error response code: %@",errorCodeResponse);
-													NSLog(@"%@",response);
+													//NSLog(@"error response code: %@",errorCodeResponse);
+													//NSLog(@"%@",response);
 												}
 												
 												

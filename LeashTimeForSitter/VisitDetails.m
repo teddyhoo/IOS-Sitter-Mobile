@@ -160,9 +160,9 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 
 } success:^(AFHTTPRequestOperation *operation, id responseObject) {
 
-	NSLog(@"FIRST ATTEMPT MAP SNAP SUCCESS: %@", responseObject);
-	NSLog(@"Request headers: %@",manager.requestSerializer.HTTPRequestHeaders);
-	NSLog(@"Request body: %@",manager.requestSerializer);
+	//NSLog(@"FIRST ATTEMPT MAP SNAP SUCCESS: %@", responseObject);
+	//NSLog(@"Request headers: %@",manager.requestSerializer.HTTPRequestHeaders);
+	//NSLog(@"Request body: %@",manager.requestSerializer);
 	self.mapSnapUploadStatus = @"SUCCESS";
 	[self writeVisitDataToFile];
 

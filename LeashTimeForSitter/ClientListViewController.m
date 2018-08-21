@@ -1445,11 +1445,11 @@
 					 [[LocationTracker sharedLocationManager] stopLocationTracking];
 				 }
              } else {
-            
 				 if([visitStatus isEqualToString:@"arrived"]) {
 					 [arriveCompleteDictionary setObject:@"ARRIVE" forKey:@"TYPE"];
 					 visit.currentArriveVisitStatus = @"FAIL";
 				 } else if([visitStatus isEqualToString:@"completed"]) {
+					 NSLog(@"failed complete dictionary");
 					 visit.currentCompleteVisitStatus = @"FAIL";
 					 [arriveCompleteDictionary setObject:@"COMPLETE" forKey:@"TYPE"];
 				 }
@@ -1464,6 +1464,10 @@
                  });
                  
              }
+			
+			for (NSDictionary *arriveComplete in sharedVisits.arrivalCompleteQueueItems) {
+				NSLog(@"arrive complete queue: %@", arriveComplete);
+			}
         }];
         [postDataTask resume];
         [[NSURLCache sharedURLCache] removeAllCachedResponses];
@@ -1471,7 +1475,7 @@
 
 
     } else if (!sharedVisits.isReachable) {
-        
+		NSLog(@"Failed");
         [arriveCompleteDictionary setObject:@"FAIL-NOT REACHABLE" forKey:@"STATUS"];
 		if([visitStatus isEqualToString:@"arrived"]) {
 			[arriveCompleteDictionary setObject:@"ARRIVE" forKey:@"TYPE"];

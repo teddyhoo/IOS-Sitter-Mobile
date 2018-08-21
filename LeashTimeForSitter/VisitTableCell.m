@@ -316,7 +316,8 @@ CGSize cellSize;
 	
 	for(NSDictionary *visitStatus in sharedVisits.arrivalCompleteQueueItems) {
 		if([[visitStatus objectForKey:@"appointmentptr"]isEqualToString:_visitInfo.appointmentid] &&
-		   [[visitStatus objectForKey:@"event"]isEqualToString:@"arrived"]) {
+		   [[visitStatus objectForKey:@"event"]isEqualToString:@"arrived"] &&
+		  [visitInfo.currentArriveVisitStatus isEqualToString:@"FAIL"]) {
 			
 			[self setBadArrivalStatus];
 
@@ -324,7 +325,8 @@ CGSize cellSize;
 	}
 	for(NSDictionary *visitStatus in sharedVisits.arrivalCompleteQueueItems) {
 		if([[visitStatus objectForKey:@"appointmentptr"]isEqualToString:_visitInfo.appointmentid] &&
-		   [[visitStatus objectForKey:@"event"]isEqualToString:@"completed"]) {
+		   [[visitStatus objectForKey:@"event"]isEqualToString:@"completed"] &&
+		   [visitInfo.currentCompleteVisitStatus isEqualToString:@"FAIL"]) {
 		
 			[self setBadCompleteStatus];
 		
@@ -621,7 +623,7 @@ CGSize cellSize;
 
 -(void) setBadArrivalStatus {
 	NSLog(@"Adding bad arrival label");
-	arriveMessagesStatus = [[UILabel alloc]initWithFrame:CGRectMake(timeBegin.frame.origin.x + 100, timeBegin.frame.origin.y, 140, 40)];
+	arriveMessagesStatus = [[UILabel alloc]initWithFrame:CGRectMake(timeBegin.frame.origin.x + 100, timeBegin.frame.origin.y+20, 140, 40)];
 	arriveMessagesStatus.numberOfLines = 2;
 	[arriveMessagesStatus setFont: [UIFont fontWithName:@"Lato-Light" size:12]];
 	[arriveMessagesStatus setTextColor:[UIColor redColor]];

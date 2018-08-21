@@ -28,7 +28,6 @@
     
     CGRect originRect;
     int moveBack;
-    int yValOffset;
 }
 
 -(void)showScreen:(id)sender {
@@ -42,384 +41,145 @@
 			[button setSelected:NO];
             [UIView animateWithDuration:0.3
                              animations:^{
-                                 
                                  self.frame = originRect;
-                                 
                              } completion:^(BOOL finished) {
-
-                                 
                              }];
-            
-            
         } else {
             [button setSelected:YES];
-            int viewSize = self.frame.origin.y - (originRect.size.height - 180);
+			int viewSize;
+			if ( [[VisitsAndTracking sharedInstance].tellDeviceType isEqualToString:@"iPhone5"]) {
+				viewSize = self.frame.origin.y - (originRect.size.height - 220);
+			} else {
+				viewSize = self.frame.origin.y - (originRect.size.height - 160);
+
+			}
             moveBack = -viewSize;
+			
             [UIView animateWithDuration:0.3
                              animations:^{
                                  self.frame = CGRectMake(0,viewSize,self.frame.size.width,self.frame.size.height);
-                                 
                              } completion:^(BOOL finished) {
- 
                              }];
-            
-            
-            
         }
     }
 }
 
 -(instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
+	self = [super initWithFrame:CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height)];
     if (self) {
         
-        
-        originRect = frame;
+		originRect = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
         
         isShowing = YES;
+		onScreen = YES;
+		visitData = [VisitsAndTracking sharedInstance];
         self.backgroundColor = [UIColor clearColor];
-        
-        backForDiagnostics = [[UIImageView alloc]initWithFrame:CGRectMake(0, -10, self.frame.size.width,self.frame.size.height)];
-        UIImage *backImage = [JzStyleKit imageOfJzCardWithJzCardFrame:CGRectMake(0, -10, self.frame.size.width,self.frame.size.height)
-                                                           rectangle2:CGRectMake(0,-10, self.frame.size.width,self.frame.size.height)];
+		int counter = 1;
+		int yDistance = 36;
+		int fontSize = 15;
+		int diagnosticY = self.frame.size.height;
+		int showScreenButtonSize = 24;
+		
+		if ([visitData.tellDeviceType isEqualToString:@"iPhone5"]) {
+			yDistance = 32;
+			fontSize = 13;
+			showScreenButtonSize = 16;
+			diagnosticY = self.frame.size.height - 80;
+		} else if ([visitData.tellDeviceType isEqualToString:@"iPhone6"]) {
+			yDistance = 36;
+			fontSize = 14;
+			diagnosticY = self.frame.size.height;
+			showScreenButtonSize = 20;
+		}  
+        backForDiagnostics = [[UIImageView alloc]initWithFrame:CGRectMake(0, 0, self.frame.size.width,diagnosticY)];
+        UIImage *backImage = [JzStyleKit imageOfJzCardWithJzCardFrame:CGRectMake(0, 0, self.frame.size.width,diagnosticY)
+                                                           rectangle2:CGRectMake(0,0, self.frame.size.width,diagnosticY)];
         [backForDiagnostics setImage:backImage];
         backForDiagnostics.alpha = 0.95;
-        
         [self addSubview:backForDiagnostics];
-        
-        
-        UIButton *showScreen = [UIButton buttonWithType:UIButtonTypeCustom];
-        showScreen.frame = CGRectMake(backForDiagnostics.frame.size.width-40,backForDiagnostics.frame.size.height-160,32,32);
-        [showScreen setBackgroundImage:[UIImage imageNamed:@"down-arrow-thick"] forState:UIControlStateSelected];
-        [showScreen setBackgroundImage:[UIImage imageNamed:@"up-arrow-thick"] forState:UIControlStateNormal];
-        [showScreen addTarget:self action:@selector(showScreen:) forControlEvents:UIControlEventTouchUpInside];
-        [self addSubview:showScreen];
-        
-        onScreen = YES;
-        visitData = [VisitsAndTracking sharedInstance];
-        
-        int pawDim = 32;
-        
-        
+		
         for (VisitDetails *visitID in visitData.visitData) {
-            
-            UIButton *visitTrackButton = [UIButton buttonWithType:UIButtonTypeCustom];
-			//NSLog(@"visit track button tag id: %@",visitID.sequenceID);
-            visitTrackButton.tag = [visitID.sequenceID integerValue];
-            [visitTrackButton addTarget:self
-                                 action:@selector(track1tap:)
-                       forControlEvents:UIControlEventTouchUpInside];
-            
-            if ([visitID.sequenceID isEqualToString:@"100"]) {
-
-                [visitTrackButton setImage:[UIImage imageNamed:@"red-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15,5,pawDim,pawDim);
-
-            }
-            else if ([visitID.sequenceID isEqualToString:@"101"]) {
-                [visitTrackButton setImage:[UIImage imageNamed:@"teal-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15, 40, pawDim,pawDim);
-
-            }
-            else if ([visitID.sequenceID isEqualToString:@"102"]) {
-            
-                [visitTrackButton setImage:[UIImage imageNamed:@"orange-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15, 75, pawDim, pawDim);
-                
-            }
-            else if ([visitID.sequenceID isEqualToString:@"103"]) {
-                
-                [visitTrackButton setImage:[UIImage imageNamed:@"purple-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15, 110, pawDim, pawDim);
-
-                
-            }
-            else if ([visitID.sequenceID isEqualToString:@"104"]) {
-                
-                [visitTrackButton setImage:[UIImage imageNamed:@"lightBlue-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15, 145, pawDim, pawDim);
-                
-            }
-            else if ([visitID.sequenceID isEqualToString:@"105"]) {
-
-                [visitTrackButton setImage:[UIImage imageNamed:@"dark-green-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15, 180, pawDim, pawDim);
-
-            }
-            else if ([visitID.sequenceID isEqualToString:@"106"]) {
-
-                
-                [visitTrackButton setImage:[UIImage imageNamed:@"magenta-paw"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15,215, pawDim, pawDim);
-
-                
-            }
-            else if ([visitID.sequenceID isEqualToString:@"107"]) {
-               
-               [visitTrackButton setImage:[UIImage imageNamed:@"brown-paw"] forState:UIControlStateNormal];
-               visitTrackButton.frame = CGRectMake(15,250, pawDim, pawDim);
-
-               
-               
-            } else if ([visitID.sequenceID isEqualToString:@"108"]) {
-
-               [visitTrackButton setImage:[UIImage imageNamed:@"pink-paw"] forState:UIControlStateNormal];
-               visitTrackButton.frame = CGRectMake(15,285, pawDim, pawDim);
-   
-               
-            }
-            else if ([visitID.sequenceID isEqualToString:@"109"]) {
-
-                
-                [visitTrackButton setImage:[UIImage imageNamed:@"light-green"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15,320, pawDim, pawDim);
-  
-            }
-            else if ([visitID.sequenceID isEqualToString:@"110"]) {
-                
-                
-                [visitTrackButton setImage:[UIImage imageNamed:@"paw-powder-blue-100"] forState:UIControlStateNormal];
-                visitTrackButton.frame = CGRectMake(15,355, pawDim, pawDim);
-
-                
-            }
-            
-            else if ([visitID.sequenceID isEqualToString:@"111"]) {
-
-                
-                //[visitTrackButton setImage:[UIImage imageNamed:@"paw-powder-blue-100"] forState:UIControlStateNormal];
-                //visitTrackButton.frame = CGRectMake(15,390, pawDim, pawDim);
-                
-            }
-            
-            yValOffset = visitTrackButton.frame.origin.y;
-            
-            
-            NSString *petNameStr = [visitID.petName uppercaseString];
-            UILabel *petName;
-            
+			
+			NSString *petNameStr = [visitID.petName uppercaseString];
+			UIButton *petNameButton = [UIButton buttonWithType:UIButtonTypeCustom];
+			[petNameButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+			petNameButton.titleLabel.font = [UIFont fontWithName:@"Lato-Bold" size:fontSize];
+			petNameButton.titleLabel.textAlignment = NSTextAlignmentLeft;
+			[petNameButton setTitle:petNameStr forState:UIControlStateNormal];
+			[petNameButton addTarget:self 
+							  action:@selector(track1tap:) 
+					forControlEvents:UIControlEventTouchUpInside];
+			petNameButton.tag = [visitID.sequenceID integerValue];
+			int yPos = (yDistance * counter) - 20;
             if(![petNameStr isEqual:[NSNull null]] && [petNameStr length] > 0) {
-                
                 if ([petNameStr length] > 26) {
-                    petName = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 80, visitTrackButton.frame.origin.y, 270, 18)];
-                    petName.numberOfLines = 2;
-                    [petName setFont:[UIFont fontWithName:@"Lato-Regular" size:14]];
-                    if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
-                        [petName setTextColor:[PharmaStyle colorYellow]];
-                    } else {
-                        [petName setTextColor:[UIColor whiteColor]];
-                        
-                    }
-                    [petName setText:petNameStr];
-                    [self addSubview:petName];
-                    
+					petNameButton.frame = CGRectMake(90,yPos, self.frame.size.width-130, 40);
                 } else {
-                    
-                    petName = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 80, visitTrackButton.frame.origin.y, 270, 18)];
-                    petName.numberOfLines = 2;
-                    [petName setFont:[UIFont fontWithName:@"Lato-Regular" size:14]];
-                    if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
-                        [petName setTextColor:[PharmaStyle colorYellow]];
-                    } else {
-                        [petName setTextColor:[UIColor whiteColor]];
-                        
-                    }
-                    [petName setText:petNameStr];
-                    [self addSubview:petName];
-                    
+					petNameButton.frame = CGRectMake(90,yPos, self.frame.size.width-130, 40);
                 }
-                
-                
-                if([visitID.status isEqualToString:@"completed"]) {
-                    
-                    [visitTrackButton setImage:[UIImage imageNamed:@"check-mark-green"] forState:UIControlStateNormal];
-                    
-                } else if ([visitID.status isEqualToString:@"canceled"]) {
-                    
-                    [visitTrackButton setImage:[UIImage imageNamed:@"x-mark-red"] forState:UIControlStateNormal];
-                    UILabel *startTime = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 30, visitTrackButton.frame.origin.y, 270, 20)];
-                    startTime.numberOfLines = 2;
-                    [startTime setFont:[UIFont fontWithName:@"Langdon" size:12]];
-                    [startTime setTextColor:[UIColor colorWithRed:0.82 green:0.11 blue:0.3 alpha:1.0]];
-                    [startTime setText:@"CANCEL"];
-                    [self addSubview:startTime];
-                    [petName setTextColor:[PharmaStyle colorRed]];
-                    petName.alpha = 0.76;
-                    
-                } else if ([visitID.status isEqualToString:@"arrived"]) {
-                    
-                    [visitTrackButton setImage:[UIImage imageNamed:@"yellow-arrive"] forState:UIControlStateNormal];
-                    
-                } else {
-                    
-                    UILabel *startTime = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 30, visitTrackButton.frame.origin.y, 270, 20)];
-                    startTime.numberOfLines = 2;
-                    [startTime setFont:[UIFont fontWithName:@"Langdon" size:12]];
-                    if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
-                        [startTime setTextColor:[PharmaStyle colorYellow]];
-                        
-                    } else {
-                        [startTime setTextColor:[PharmaStyle colorBlueLight]];
-                        
-                        
-                    }
-                    [startTime setText:visitID.starttime];
-                    [self addSubview:startTime];
-                    
-                    
-                    if(![visitID.street1 isEqual:[NSNull null]] && [visitID.street1 length] > 0) {
-                    
-                        UILabel *addressClient = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 80, visitTrackButton.frame.origin.y+20, 270, 20)];
-                        addressClient .numberOfLines = 2;
-                        [addressClient  setFont:[UIFont fontWithName:@"Lato-Light" size:12]];
-                        if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
-                            [addressClient  setTextColor:[PharmaStyle colorYellow]];
-                        } else {
-                            [addressClient  setTextColor:[UIColor whiteColor]];
-                        }
-                        
-                        [addressClient  setText:visitID.street1];
-                        [self addSubview:addressClient ];
-                        
-                    }
-                }
-                
             } else {
-                
-                
                 petNameStr = @"NO PET NAME";
-                
-                petName = [[UILabel alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x + 80, visitTrackButton.frame.origin.y, 270, 18)];
-                petName.numberOfLines = 2;
-                [petName setFont:[UIFont fontWithName:@"Lato-Regular" size:12]];
-                if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
-                    [petName setTextColor:[PharmaStyle colorYellow]];
-                } else {
-                    [petName setTextColor:[UIColor whiteColor]];
-                    
-                }
-                [petName setText:petNameStr];
-                [self addSubview:petName];
-                
-                
+				petNameButton.frame = CGRectMake(90,yPos, self.frame.size.width-130, 50);
             }
-            
+			
+			[petNameButton setTitleColor:[UIColor redColor] forState:UIControlStateSelected];
+			[petNameButton setTitle:petNameStr forState:UIControlStateSelected];
+			[self addSubview:petNameButton];
 
-            
-            UIImageView *lineDivide = [[UIImageView alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x, visitTrackButton.frame.origin.y+30, backForDiagnostics.frame.size.width-60, 1)];
+			UIButton *visitTrackButton = [UIButton buttonWithType:UIButtonTypeCustom];
+			visitTrackButton.frame = CGRectMake(petNameButton.frame.origin.x - 20, petNameButton.frame.origin.y, 20, 20);
+			
+			UILabel *startTime = [[UILabel alloc]initWithFrame:CGRectMake(petNameButton.frame.origin.x -65, petNameButton.frame.origin.y+10, 270, 20)];
+			startTime.numberOfLines = 2;
+			[startTime setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
+			[startTime setTextColor:[UIColor whiteColor]];
+			[startTime setText:visitID.starttime];
+			if ([visitData.onWhichVisitID isEqualToString:visitID.appointmentid]) {
+				[startTime setTextColor:[PharmaStyle colorYellow]];
+			} else {
+				[startTime setTextColor:[PharmaStyle colorBlueLight]];
+			}
+			
+			if([visitID.status isEqualToString:@"completed"]) {
+				[visitTrackButton setImage:[UIImage imageNamed:@"check-mark-green"] forState:UIControlStateNormal];
+			} else if ([visitID.status isEqualToString:@"canceled"]) {
+				[visitTrackButton setImage:[UIImage imageNamed:@"x-mark-red"] forState:UIControlStateNormal];
+			} else if ([visitID.status isEqualToString:@"arrived"]) {
+				[visitTrackButton setImage:[UIImage imageNamed:@"yellow-arrive"] forState:UIControlStateNormal];
+				[self addSubview:startTime];
+			} else if ([visitID.status isEqualToString:@"future"] || [visitID.status isEqualToString:@"late"]) {
+				[self addSubview:startTime];
+			}
+			
+			[backForDiagnostics addSubview:visitTrackButton];
+		
+            UIImageView *lineDivide = [[UIImageView alloc]initWithFrame:CGRectMake(petNameButton.frame.origin.x, petNameButton.frame.origin.y+yDistance-5, backForDiagnostics.frame.size.width-60, 1)];
             [lineDivide setImage:[UIImage imageNamed:@"white-line-1px"]];
             lineDivide.alpha = 0.15;
             [self addSubview:lineDivide];
-            
-            [self addSubview:visitTrackButton];
-            
+			
             if(![visitID.note isEqual:[NSNull null]] && [visitID.note length] > 0) {
-                UIImageView *noteIcon = [[UIImageView alloc]initWithFrame:CGRectMake(visitTrackButton.frame.origin.x - 10, visitTrackButton.frame.origin.y+15, 12, 12)];
+                UIImageView *noteIcon = [[UIImageView alloc]initWithFrame:CGRectMake(petNameButton.frame.origin.x - 5, petNameButton.frame.origin.y+10, 16, 16)];
                 [noteIcon setImage:[UIImage imageNamed:@"manager-note-icon-128x128"]];
                 [self addSubview:noteIcon];
             }
-            
-            
+			counter++;
         }
+		
+		UIButton *showScreen = [UIButton buttonWithType:UIButtonTypeCustom];
+		showScreen.frame = CGRectMake(backForDiagnostics.frame.size.width/2-16,yDistance * counter-10,showScreenButtonSize,showScreenButtonSize);
+		[showScreen setBackgroundImage:[UIImage imageNamed:@"down-arrow-thick"] forState:UIControlStateSelected];
+		[showScreen setBackgroundImage:[UIImage imageNamed:@"up-arrow-thick"] forState:UIControlStateNormal];
+		[showScreen addTarget:self action:@selector(showScreen:) forControlEvents:UIControlEventTouchUpInside];
+		showScreen.alpha = 0.77;
+		[self addSubview:showScreen];
+		
+
+		
+		
     }
     return self;
 }
-
-
--(void)removeView {
-    [currentArriveTime removeFromSuperview];
-    [currentCompleteTime removeFromSuperview];
-    [visitInfo removeFromSuperview];
-	[visitNote removeFromSuperview];
-    
-    currentArriveTime = nil;
-    currentCompleteTime = nil;
-    visitInfo = nil;
-	visitNote = nil;
-	_delegate = nil;
-
-
-}
-
--(void)createVisitItem:(NSString *)pawPrintID {
-    
-    
-}
-
--(void) updateVisitStatus:(NSString *)sequenceID andStatus:(NSString*)status {
-    
-    UIImage *statusImage;
-    
-    if ([status isEqualToString:@"completed"]) {
-        
-        statusImage = [UIImage imageNamed:@"checkMarkButton49x49-2"];
-        
-    } else if ([status isEqualToString:@"arrived"]) {
-        
-        statusImage = [UIImage imageNamed:@"arrive-arrow-green"];
-        
-    } else if ([status isEqualToString:@"late"]) {
-        
-        statusImage = [UIImage imageNamed:@"alarm-bell-64x64"];
-        
-    } else if ([status isEqualToString:@"canceled"]) {
-        
-        statusImage = [UIImage imageNamed:@"cross"];
-    }
-
-}
-
--(void)moveDiagnosticView {
-
-}
-
--(void)setDelegate:(id)delegate {
-    _delegate = delegate;
-}
-
--(void)updateVisitDetailInfo:(VisitDetails*)visit {
-	
-	[currentArriveTime removeFromSuperview];
-	[currentCompleteTime removeFromSuperview];
-	[visitInfo removeFromSuperview];
-	[visitNote removeFromSuperview];
-
-	currentArriveTime = nil;
-	currentCompleteTime = nil;
-	visitInfo = nil;
-	visitNote = nil;
-
-    visitInfo = [[UILabel alloc]initWithFrame:CGRectMake(45, self.frame.size.height-60, 300, 16)];
-    [visitInfo setFont:[UIFont fontWithName:@"Lato-Regular" size:16]];
-    [visitInfo setText:visit.petName];
-    [visitInfo setTextColor:[UIColor yellowColor]];
-    
-    currentArriveTime = [[UILabel alloc]initWithFrame:CGRectMake(45, self.frame.size.height-40, 300, 18)];
-    [currentArriveTime setFont:[UIFont fontWithName:@"Langdon" size:14]];
-    [currentArriveTime setTextColor:[UIColor yellowColor]];
-    
-    currentCompleteTime = [[UILabel alloc]initWithFrame:CGRectMake(185, self.frame.size.height-40, 300, 18)];
-    [currentCompleteTime setFont:[UIFont fontWithName:@"Langdon" size:14]];
-    [currentCompleteTime setTextColor:[UIColor yellowColor  ]];
-    
-    if (visit.dateTimeMarkArrive == NULL) {
-        [currentArriveTime setText:@"Not Start"];
-    } else if (visit.dateTimeMarkArrive != NULL) {
-        [currentArriveTime setText:visit.dateTimeMarkArrive];
-    }
-    
-    if (visit.dateTimeMarkComplete == NULL) {
-        
-        [currentCompleteTime setText:@"Incomplete"];
-    } else if (visit.dateTimeMarkComplete != NULL) {
-        [currentCompleteTime setText:visit.dateTimeMarkComplete];
-    }
-    
-    [self addSubview:visitInfo];
-    [self addSubview:currentArriveTime];
-    [self addSubview:currentCompleteTime];
-}
-
 
 
 
@@ -430,7 +190,6 @@
         UIButton *pawPrintButton = (UIButton*)sender;
         
         NSString *routeID = [NSString stringWithFormat:@"%li",(long)pawPrintButton.tag];
-		//NSLog(@"route id: %@",routeID);
 		
         [visitInfo removeFromSuperview];
         [currentArriveTime removeFromSuperview];
@@ -440,50 +199,131 @@
 
         for (VisitDetails *visit in visitData.visitData) {
             if ([visit.sequenceID isEqualToString:routeID]) {
-                visitInfo = [[UILabel alloc]initWithFrame:CGRectMake(25, yValOffset+50, 300, 16)];
-                [visitInfo setFont:[UIFont fontWithName:@"Lato-Regular" size:14]];
+                visitInfo = [[UILabel alloc]initWithFrame:CGRectMake(25, backForDiagnostics.frame.size.height -90, 300, 20)];
+                [visitInfo setFont:[UIFont fontWithName:@"Lato-Regular" size:16]];
                 [visitInfo setText:visit.petName];
                 [visitInfo setTextColor:[UIColor yellowColor]];
                 
-                currentArriveTime = [[UILabel alloc]initWithFrame:CGRectMake(originRect.size.width - 120 ,yValOffset+50, 80, 14)];
-                [currentArriveTime setFont:[UIFont fontWithName:@"Langdon" size:12]];
+                currentArriveTime = [[UILabel alloc]initWithFrame:CGRectMake(backForDiagnostics.frame.size.width - 140 ,visitInfo.frame.origin.y-20, 140, 14)];
+                [currentArriveTime setFont:[UIFont fontWithName:@"Lato-Light" size:12]];
                 [currentArriveTime setTextColor:[UIColor yellowColor]];
                 
-                currentCompleteTime = [[UILabel alloc]initWithFrame:CGRectMake(originRect.size.width - 120, yValOffset+70, 80, 14)];
-                [currentCompleteTime setFont:[UIFont fontWithName:@"Langdon" size:12]];
+                currentCompleteTime = [[UILabel alloc]initWithFrame:CGRectMake(backForDiagnostics.frame.size.width - 140,visitInfo.frame.origin.y, 140, 14)];
+                [currentCompleteTime setFont:[UIFont fontWithName:@"Lato-Light" size:12]];
                 [currentCompleteTime setTextColor:[UIColor yellowColor]];
                 
+				if(![visit.note isEqual:[NSNull null]] && [visit.note length] > 0) {
+					
+					visitNote = [[UILabel alloc]initWithFrame:CGRectMake(visitInfo.frame.origin.x,  visitInfo.frame.origin.y + 22, self.frame.size.width-25, 60)];
+					visitNote.numberOfLines = 6;
+					[visitNote setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
+					[visitNote setTextColor:[UIColor yellowColor]];
+					[visitNote setText:visit.note];
+					[self addSubview:visitNote];
+				}
+				
                 if (visit.dateTimeMarkArrive == NULL) {
                     [currentArriveTime setText:@"NOT STARTED"];
                 } else if (visit.dateTimeMarkArrive != NULL) {
-                    [currentArriveTime setText:visit.dateTimeMarkArrive];
+                    [currentArriveTime setText:visit.arrived];
+					[currentArriveTime setTextColor:[UIColor orangeColor]];
+					[visitInfo setTextColor:[UIColor orangeColor]];
+					[visitNote setTextColor:[UIColor orangeColor]];
+					currentCompleteTime.alpha = 0.0;
                 }
                 
                 if (visit.dateTimeMarkComplete == NULL) {
                     [currentCompleteTime setText:@"NOT DONE"];
                 } else if (visit.dateTimeMarkComplete != NULL) {
-                    [currentCompleteTime setText:visit.dateTimeMarkComplete];
+                    [currentCompleteTime setText:visit.completed];
+					[currentCompleteTime setTextColor:[UIColor greenColor]];
+					[currentArriveTime setTextColor:[UIColor greenColor]];
+					currentCompleteTime.alpha = 1.0;
+					[visitInfo setTextColor:[UIColor greenColor]];
+					[visitNote setTextColor:[UIColor greenColor]];
                 }
-                
                 [self addSubview:visitInfo];
                 [self addSubview:currentArriveTime];
                 [self addSubview:currentCompleteTime];
-                
-                if(![visit.note isEqual:[NSNull null]] && [visit.note length] > 0) {
-
-                    visitNote = [[UILabel alloc]initWithFrame:CGRectMake(currentArriveTime.frame.origin.x, self.frame.size.height - 160, self.frame.size.width-45, 180)];
-                    visitNote.numberOfLines = 6;
-                    [visitNote setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
-                    [visitNote setTextColor:[UIColor yellowColor]];
-                    [visitNote setText:visit.note];
-                    [self addSubview:visitNote];
- 
-                }
-            }
+			}
         }
         [_delegate drawRoute:routeID];
-
     }
+}
+
+-(void) updateVisitStatus:(NSString *)sequenceID andStatus:(NSString*)status {
+	UIImage *statusImage;
+	if ([status isEqualToString:@"completed"]) {
+		statusImage = [UIImage imageNamed:@"checkMarkButton49x49-2"];
+	} else if ([status isEqualToString:@"arrived"]) {
+		statusImage = [UIImage imageNamed:@"arrive-arrow-green"];
+	} else if ([status isEqualToString:@"late"]) {
+		statusImage = [UIImage imageNamed:@"alarm-bell-64x64"];
+	} else if ([status isEqualToString:@"canceled"]) {
+		statusImage = [UIImage imageNamed:@"cross"];
+	}
+}
+
+-(void)updateVisitDetailInfo:(VisitDetails*)visit {
+	
+	[currentArriveTime removeFromSuperview];
+	[currentCompleteTime removeFromSuperview];
+	[visitInfo removeFromSuperview];
+	[visitNote removeFromSuperview];
+	
+	currentArriveTime = nil;
+	currentCompleteTime = nil;
+	visitInfo = nil;
+	visitNote = nil;
+	
+	visitInfo = [[UILabel alloc]initWithFrame:CGRectMake(45, backForDiagnostics.frame.size.height - 150, 300, 16)];
+	[visitInfo setFont:[UIFont fontWithName:@"Lato-Regular" size:16]];
+	[visitInfo setText:visit.petName];
+	[visitInfo setTextColor:[UIColor yellowColor]];
+	
+	currentArriveTime = [[UILabel alloc]initWithFrame:CGRectMake(45, self.frame.size.height-70, 300, 18)];
+	[currentArriveTime setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
+	[currentArriveTime setTextColor:[UIColor yellowColor]];
+	
+	currentCompleteTime = [[UILabel alloc]initWithFrame:CGRectMake(185, self.frame.size.height-70, 300, 18)];
+	[currentCompleteTime setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
+	[currentCompleteTime setTextColor:[UIColor yellowColor  ]];
+	
+	if (visit.dateTimeMarkArrive == NULL) {
+		[currentArriveTime setText:@"Not Start"];
+	} else if (visit.dateTimeMarkArrive != NULL) {
+		[currentArriveTime setText:visit.dateTimeMarkArrive];
+	}
+	if (visit.dateTimeMarkComplete == NULL) {
+		[currentCompleteTime setText:@"Incomplete"];
+	} else if (visit.dateTimeMarkComplete != NULL) {
+		[currentCompleteTime setText:visit.dateTimeMarkComplete];
+	}
+}
+
+-(void)removeView {
+	[currentArriveTime removeFromSuperview];
+	[currentCompleteTime removeFromSuperview];
+	[visitInfo removeFromSuperview];
+	[visitNote removeFromSuperview];
+	currentArriveTime = nil;
+	currentCompleteTime = nil;
+	visitInfo = nil;
+	visitNote = nil;
+	_delegate = nil;
+}
+
+
+-(void)createVisitItem:(NSString *)pawPrintID {
+	
+}
+
+-(void)moveDiagnosticView {
+	
+}
+
+-(void)setDelegate:(id)delegate {
+	_delegate = delegate;
 }
 
 @end
