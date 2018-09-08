@@ -45,7 +45,28 @@
 - (void)applicationDidEnterBackground:(UIApplication *)application {
 	
     _sharedVisits.appRunningBackground = YES;
+	bool isOnArriveVisit = FALSE;
+	for(VisitDetails *visit in _sharedVisits.visitData) {
+		if([visit.status isEqualToString:@"arrived"]) { 
+			isOnArriveVisit = TRUE;
+			NSLog(@"There is an arrived visit status");
+		}
+	}
+	
+	LocationTracker *location = [LocationTracker sharedLocationManager];
 
+	if (isOnArriveVisit) {
+
+		if (location.isLocationTracking) {
+			NSLog(@"Already location tracking");
+		} else {
+			NSLog(@"Not location tracking");
+			[location startLocationTracking];
+		}
+	} else {
+		NSLog(@"No visits so stopping location tracking");
+		[location stopLocationTracking];
+	}
     
 }
 - (void)applicationWillEnterForeground:(UIApplication *)application {
@@ -55,6 +76,25 @@
 		
 	//NSLog(@"Post Application Did Become Active Notification from AppDelegate");
 	[[NSNotificationCenter defaultCenter]postNotificationName:@"comingForeground" object:nil];
+	bool isOnArriveVisit = FALSE;
+	for(VisitDetails *visit in _sharedVisits.visitData) {
+		if([visit.status isEqualToString:@"arrived"]) { 
+			isOnArriveVisit = TRUE;
+			NSLog(@"There is an arrived visit status");
+		} 
+	}
+	LocationTracker *location = [LocationTracker sharedLocationManager];
+
+	if (isOnArriveVisit) {
+		if  (!location.isLocationTracking) {
+			[location startLocationTracking];
+			NSLog(@"starting location tracker");
+		} else {
+			NSLog(@"Location tracker is already tracking");
+		}
+	} else {
+		NSLog(@"The location tracker is currently off");
+	}
 
 }
 - (void)applicationWillTerminate:(UIApplication *)application {

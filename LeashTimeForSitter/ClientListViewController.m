@@ -1215,7 +1215,11 @@
             }
 
             if(!alreadyMarkArrived) {
-				
+				LocationTracker *locationTracker = [LocationTracker sharedLocationManager];
+				if (!locationTracker.isLocationTracking) {
+					NSLog(@"Location tracker was OFF and restarting");
+					[locationTracker startLocationTracking];
+				}
                 mail.arrived = dateString2;
                 mail.hasArrived = YES;
                 mail.status = @"arrived";
@@ -1416,6 +1420,8 @@
                  if ([visitStatus isEqualToString:@"arrived"])
                  {
 					 
+
+					 
 					 [visit markArrive:dateTimeString2 latitude:theLatitude longitude:theLongitude];
 					 [sharedVisits updateArriveCompleteInTodayYesterdayTomorrow:visit withStatus:@"arrived"];
 					 [arriveCompleteDictionary setObject:@"ARRIVE" forKey:@"TYPE"];
@@ -1432,14 +1438,13 @@
 					 [visit markComplete:dateTimeString2 latitude:theLatitude longitude:theLongitude];
 					 visit.NSDateMarkComplete = rightNow;
 					 visit.currentCompleteVisitStatus = @"SUCCESS";
-					 [visit writeVisitDataToFile];
+					 dispatch_async(dispatch_get_main_queue(), ^{
+						 [visit writeVisitDataToFile];
+					 });
+					 
 					 [arriveCompleteDictionary setObject:@"COMPLETE" forKey:@"TYPE"];
 					 [sharedVisits.arrivalCompleteQueueItems addObject:arriveCompleteDictionary];
-
-					 [sharedVisits updateArriveCompleteInTodayYesterdayTomorrow:visit withStatus:@"completed"];
-					 dispatch_async(dispatch_get_main_queue(), ^{
-						 [_tableView reloadData];
-					 });
+					 [_tableView reloadData];
 										
 					 [[NSNotificationCenter defaultCenter]postNotificationName:@"MarkComplete" object:self];
 					 [[LocationTracker sharedLocationManager] stopLocationTracking];
@@ -1453,21 +1458,14 @@
 					 visit.currentCompleteVisitStatus = @"FAIL";
 					 [arriveCompleteDictionary setObject:@"COMPLETE" forKey:@"TYPE"];
 				 }
-				 [visit writeVisitDataToFile];
+				 dispatch_async(dispatch_get_main_queue(), ^{
+					 [visit writeVisitDataToFile];
+				 });
 				 
 				 [arriveCompleteDictionary setObject:@"FAIL-NETWORK RESPONSE" forKey:@"STATUS"];
 				 [sharedVisits.arrivalCompleteQueueItems addObject:arriveCompleteDictionary];
-
-                 dispatch_async(dispatch_get_main_queue(), ^{
-
-			     	[_tableView reloadData];
-                 });
-                 
+				 [_tableView reloadData];
              }
-			
-			for (NSDictionary *arriveComplete in sharedVisits.arrivalCompleteQueueItems) {
-				NSLog(@"arrive complete queue: %@", arriveComplete);
-			}
         }];
         [postDataTask resume];
         [[NSURLCache sharedURLCache] removeAllCachedResponses];
@@ -1482,14 +1480,15 @@
 		} else if([visitStatus isEqualToString:@"completed"]) {
 			[arriveCompleteDictionary setObject:@"COMPLETE" forKey:@"TYPE"];
 		}
-		[visit writeVisitDataToFile];
-        [sharedVisits.arrivalCompleteQueueItems addObject:arriveCompleteDictionary];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [_tableView reloadData];
-        });
-    }
-    
+		dispatch_async(dispatch_get_main_queue(), ^{
 
+			[visit writeVisitDataToFile];
+			
+		});
+
+        [sharedVisits.arrivalCompleteQueueItems addObject:arriveCompleteDictionary];
+		[_tableView reloadData];
+    }
 }
 
 #pragma mark Swipe Delegate

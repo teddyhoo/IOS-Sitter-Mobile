@@ -1179,7 +1179,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	
 	NSURL *urlLogin = [NSURL URLWithString:requestString];
 	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-	[request setTimeoutInterval:40.0];
+	[request setTimeoutInterval:10.0];
 	[request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
 	mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
 											  delegate:self
@@ -1199,7 +1199,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 														  [_lastRequest addObject:dateString2];
 														  
 														  NSString *errorCodeResponse = [self checkErrorCodes:data];
-														  
+														  NSLog(@"Error code response: %@", errorDic);
 														  if(error == nil) {
 															  [_lastRequest addObject:@"OK"];
 															  if ([errorCodeResponse isEqualToString:@"OK"]) {
@@ -1892,8 +1892,9 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
                                                 NSData *jpgDataImg = UIImageJPEGRepresentation(image, 1);
                                                 UIImage *petImageJpeg = [UIImage imageWithData:jpgDataImg];
 
-
-                                                [jpgDataImg writeToFile:imagePath atomically:YES];
+												dispatch_async(dispatch_get_main_queue(), ^{
+													[jpgDataImg writeToFile:imagePath atomically:YES];
+												});
                                                 
                                                 if (data != nil) {
                                                     

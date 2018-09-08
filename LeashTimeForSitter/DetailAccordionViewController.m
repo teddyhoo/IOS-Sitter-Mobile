@@ -791,7 +791,7 @@
 	NSString *basicInfoNote = currentClient.basicInfoNotes;
 	int basicInfoNoteNumLines = [self calcNumLines:basicInfoNote];
 	int basicInfoNoteHeight = [self calcHeight:basicInfoNote];
-	int fontNoteSize = 22;
+	int fontNoteSize = 18;
 	
  	UILabel *basicOfficeNoteLabel = [[UILabel alloc]initWithFrame:CGRectMake(10, 5, detailView.frame.size.width - 40, 18)];
 	basicOfficeNoteLabel.numberOfLines = basicInfoNoteNumLines;
@@ -807,8 +807,10 @@
 	[basicOfficeNoteTextLabel setTextColor:[PharmaStyle colorAppWhite]];
 	[basicOfficeNoteTextLabel setText:basicInfoNote];
 	
-	UIScrollView *scrollView = [[UIScrollView alloc]initWithFrame:CGRectMake(10, 27, detailView.frame.size.width, detailView.frame.size.height)];
-	scrollView.contentSize = CGSizeMake(detailView.frame.size.width, basicInfoNoteHeight);
+	UIScrollView *scrollView = [[UIScrollView alloc]initWithFrame:CGRectMake(10, 27, detailView.frame.size.width-52, detailView.frame.size.height)];
+	UIEdgeInsets inset = UIEdgeInsetsMake(10, 10, 10,10);
+	scrollView.contentInset = inset;
+	scrollView.contentSize = CGSizeMake(detailView.frame.size.width-52, basicInfoNoteHeight);
 	scrollView.contentOffset = CGPointZero;
 	
 	[scrollView setScrollEnabled:YES];
