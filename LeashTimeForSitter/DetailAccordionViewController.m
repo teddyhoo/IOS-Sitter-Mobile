@@ -1540,7 +1540,6 @@
 		for (NSString *clientField in accordionSection) {
 			int sectionHeight = [self calcHeight:clientField];
 			int numberLinesClientField = [self calcNumLines:clientField];
-			int numLineCarriageReturn = 0;
 			sectionHeight += 20;
 			UILabel *valInfo = [self createTermLabel:clientField
 												xPos:x
@@ -1584,6 +1583,7 @@
                    numLines:(int)numLines
               withLabelType:(NSString*)labelType {
     
+	NSLog(@"Client field: %@", termText);
     UILabel *labelForKey = [[UILabel alloc]initWithFrame:CGRectMake(x, y, width, height)];
     labelForKey.numberOfLines = numLines;
     

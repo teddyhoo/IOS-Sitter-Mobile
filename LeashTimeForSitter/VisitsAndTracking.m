@@ -1452,25 +1452,30 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 -(void) updateArriveCompleteInTodayYesterdayTomorrow:(VisitDetails*)visitItem withStatus:(NSString*)status {
 	
 	NSMutableDictionary *matchVisit;
-	
-	for(NSMutableDictionary *visits in todaysVisits) {
-		if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
-			matchVisit = visits;
+	@synchronized(self) {
+		for(NSMutableDictionary *visits in todaysVisits) {
+			if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
+				matchVisit = visits;
+			}
 		}
 	}
-	
-	for(NSMutableDictionary *visits in yesterdayVisits) {
-		if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
-			matchVisit = visits;
+
+	@synchronized(self) {
+		for(NSMutableDictionary *visits in yesterdayVisits) {
+			if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
+				matchVisit = visits;
+			}
 		}
 	}
-	
-	for(NSMutableDictionary *visits in tomorrowVisits) {
-		if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
-			matchVisit = visits;
+
+		
+	@synchronized(self) {
+		for(NSMutableDictionary *visits in tomorrowVisits) {
+			if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
+				matchVisit = visits;
+			}
 		}
 	}
-	
 	
 	if([status isEqualToString:@"arrived"] && matchVisit != NULL) {
 				
@@ -1909,8 +1914,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
         }
     }
     
-    @synchronized(@"clientCopy") {
-		
+    @synchronized(self) {
         for (DataClient *clientDataDetails in clientDataTemp) {
 			BOOL isNewClient = TRUE;
 			for (DataClient *clientOld in _clientData) {

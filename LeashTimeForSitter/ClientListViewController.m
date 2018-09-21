@@ -1419,15 +1419,15 @@
 				 
                  if ([visitStatus isEqualToString:@"arrived"])
                  {
-					 
-
-					 
 					 [visit markArrive:dateTimeString2 latitude:theLatitude longitude:theLongitude];
-					 [sharedVisits updateArriveCompleteInTodayYesterdayTomorrow:visit withStatus:@"arrived"];
+					 visit.currentArriveVisitStatus  = @"SUCCESS";
 					 [arriveCompleteDictionary setObject:@"ARRIVE" forKey:@"TYPE"];
 					 [sharedVisits.arrivalCompleteQueueItems addObject:arriveCompleteDictionary];
-					 visit.currentArriveVisitStatus  = @"SUCCESS";
 					 
+					 @synchronized(@"updateVisits") {
+						 [sharedVisits updateArriveCompleteInTodayYesterdayTomorrow:visit withStatus:@"arrived"];
+					 }
+
 					 dispatch_async(dispatch_get_main_queue(), ^{
 						 [visit writeVisitDataToFile];
 					 });
