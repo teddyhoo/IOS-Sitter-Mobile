@@ -8,33 +8,22 @@
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import "MGSwipeTableCell.h"
 #import "VisitDetails.h"
+#import "ClientListViewController.h"
 
+@interface VisitTableCell : UITableViewCell
 
-/*@interface VisitIndicatorView : UIView
+-(instancetype) initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier
+                      andSize:(CGSize)cellSize 
+         parentViewController:(ClientListViewController*)parent;
 
-@property (nonatomic,strong)UIColor *indicatorColor;
-@property (nonatomic,strong)UIColor *innerColor;
-
-@end*/
-
-
-
-@interface VisitTableCell : MGSwipeTableCell
-@property (nonatomic,strong) VisitDetails *visitInfo;
-@property (nonatomic,strong) UIView *backgroundIV;
-
-
--(instancetype) initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier andSize:(CGSize)cellSize;
--(void)setVisitDetail:(VisitDetails*)visitInfo;
+-(void)setVisitDetail:(VisitDetails*)visitInfo withIndexPath:(NSIndexPath*)indexPath;
 -(void)setStatus:(NSString*)visitStatus widthOffset:(int)widthOffset fontSize:(int)fontSize;
--(void)showKeyInfo;
--(void)showFlags;
--(void)showPetPicInCell;
--(void)addManagerNote:(UIButton*)managerNoteButton;
+-(void)addManagerNote;
 -(void)startVisitTimer;
 -(void) stopVisitTimer;
+
 @end
 
 

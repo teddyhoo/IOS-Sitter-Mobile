@@ -43,7 +43,6 @@
     
     if (self=[super initWithFrame:frame]) {
         self.userInteractionEnabled = YES;
-		
 		self.backgroundColor = [UIColor whiteColor];
 		VisitsAndTracking *sharedVisits = [VisitsAndTracking sharedInstance];
 		NSString *theDeviceType = [sharedVisits tellDeviceType];
@@ -139,13 +138,13 @@
 
 -(void)getDirections:(id)sender {
     
-    //NSLog(@"get directions button pressed");
     
     if([sender isKindOfClass:[UIButton class]]) {
         UIButton *directionsButton = (UIButton*)sender;
-        
         [directionsButton setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
         [directionsButton setTitle:@"FINDING" forState:UIControlStateNormal];
+        removeDirectionsView = [UIButton buttonWithType:UIButtonTypeCustom];
+        UIButton *removeDirectionsTmp = removeDirectionsView;
         MKPlacemark *placeBegin = [[MKPlacemark alloc]initWithCoordinate:currentLocation addressDictionary:nil];
         MKPlacemark *placeEnd  = [[MKPlacemark alloc]initWithCoordinate:clientHomeLocation addressDictionary:nil];
         MKMapItem *mapItemSrc = [[MKMapItem alloc]initWithPlacemark:placeBegin];
@@ -155,6 +154,18 @@
         request.destination = mapItemDest;
         request.transportType = MKDirectionsTransportTypeAutomobile;
         
+        UIView *directionsViewTmp = directionsView;
+        directionsScrollView = [[UIScrollView alloc]initWithFrame:CGRectMake(10, 40, self.frame.size.width-60, 340)];
+        UIScrollView *directionsScrollTmp = directionsScrollView;
+        MKMapView *mapTmp = _myMapView;
+        MKCoordinateRegion region;
+        float spanX = 0.11225;
+        float spanY = 0.11225;
+        region.center.latitude = currentLocation.latitude;
+        region.center.longitude = currentLocation.longitude;
+        region.span.latitudeDelta = spanX;
+        region.span.longitudeDelta = spanY;
+
         MKDirections *directions = [[MKDirections alloc] initWithRequest:request];
         [directions calculateDirectionsWithCompletionHandler:
          ^(MKDirectionsResponse *response, NSError *error) {
@@ -170,8 +181,7 @@
                  NSArray *stepRoute = route.steps;
                  int yCoord = 10;
                 //int numberDirections = (int)[stepRoute count];
-				 directionsScrollView = [[UIScrollView alloc]initWithFrame:CGRectMake(10, 40, self.frame.size.width-60, 340)];
-				 directionsScrollView.contentSize = CGSizeMake(directionsScrollView.frame.size.width, 2000);
+                 directionsScrollTmp.contentSize = CGSizeMake(directionsScrollTmp.frame.size.width, 2000);
                  int dirStepNum = 1;
                 
                  for (MKRouteStep *step in stepRoute) {
@@ -191,45 +201,37 @@
                      [directionsLabel setFont:[UIFont fontWithName:@"Lato-Regular" size:16]];
                      [directionsLabel setTextColor:[UIColor whiteColor]];
                      [directionsLabel setText:dirStepStr];
-                     [directionsView addSubview:directionsLabel];
-					 [directionsScrollView addSubview:directionsLabel];
+                     [directionsViewTmp addSubview:directionsLabel];
+					 [directionsScrollTmp addSubview:directionsLabel];
                      dirStepNum++;
                      
                  }
                  
-				 directionsScrollView.backgroundColor = [UIColor blackColor];
-				 directionsScrollView.alpha = 0.7;
-				 directionsScrollView.scrollEnabled = YES;
+                 directionsScrollTmp.backgroundColor = [UIColor blackColor];
+                 directionsScrollTmp.alpha = 0.7;
+                 directionsScrollTmp.scrollEnabled = YES;
 			 
-				 [self addSubview:directionsScrollView];
-                 [_myMapView addOverlay:route.polyline level:MKOverlayLevelAboveRoads];
+				 [self addSubview:directionsScrollTmp];
+                 [mapTmp addOverlay:route.polyline level:MKOverlayLevelAboveRoads];
                  
                  [directionsButton setTitleColor:[UIColor blueColor] forState:UIControlStateNormal];
                  [directionsButton setTitle:@"FOUND DIRECTIONS" forState:UIControlStateNormal];
 				 
-				 removeDirectionsView = [UIButton buttonWithType:UIButtonTypeCustom];
-				 removeDirectionsView.frame = directionsButton.frame;
-				 [directionsButton removeFromSuperview];
-				 [removeDirectionsView setTitle:@"REMOVE DIRECTIONS" forState:UIControlStateNormal];
-				 [removeDirectionsView setTitleColor:[UIColor blueColor] forState:UIControlStateNormal];
-				 [removeDirectionsView addTarget:self action:@selector(clickRemoveDirections:) forControlEvents:UIControlEventTouchUpInside];
-				 [self addSubview:removeDirectionsView];
-                 float spanX = 0.11225;
-                 float spanY = 0.11225;
-                 MKCoordinateRegion region;
-                 region.center.latitude = currentLocation.latitude;
-                 region.center.longitude = currentLocation.longitude;
-                 region.span.latitudeDelta = spanX;
-                 region.span.longitudeDelta = spanY;
+                 removeDirectionsTmp.frame = directionsButton.frame;
+				 [removeDirectionsTmp removeFromSuperview];
+				 [removeDirectionsTmp setTitle:@"REMOVE DIRECTIONS" forState:UIControlStateNormal];
+				 [removeDirectionsTmp setTitleColor:[UIColor blueColor] forState:UIControlStateNormal];
+				 [removeDirectionsTmp addTarget:self action:@selector(clickRemoveDirections:) forControlEvents:UIControlEventTouchUpInside];
+				 [self addSubview:removeDirectionsTmp];
+    
                  
-                 [_myMapView setRegion:region animated:YES];
+                 [mapTmp setRegion:region animated:YES];
 
              }
          }];
         
     }
 }
-
 -(void)clickRemoveDirections:(id)sender {
 	
 	[directionsScrollView removeFromSuperview];
@@ -244,7 +246,6 @@
     polylineRender.strokeColor = [UIColor redColor];
     return polylineRender;
 }
-
 -(void)zoomToVisitLocation:(CLLocationCoordinate2D)visitCoord {
 
     float spanX = 0.00125;
@@ -256,7 +257,6 @@
     region.span.longitudeDelta = spanY;
     [_myMapView setRegion:region animated:YES];
 }
-
 -(void)removeAnnotations {
     
     for (id<MKAnnotation> annotation in _myMapView.annotations) {
@@ -273,12 +273,8 @@
     [_myMapView removeOverlays:_myMapView.overlays];
     
 }
-
 -(void)_mapView:(MKMapView *)_mapView didAddAnnotationViews:(NSArray *)views {
-    
-    
 }
-
 -(MKAnnotationView *)_mapView:(MKMapView *)_mapView viewForAnnotation:(id <MKAnnotation>)annotation {
     
     
@@ -331,7 +327,6 @@
     
     return theAnnotationView;
 }
-
 -(MKPolyline *) polyLine:(NSArray *)routePoints {
     
     CLLocationCoordinate2D coords[[routePoints count]];
@@ -344,8 +339,6 @@
     return [MKPolyline polylineWithCoordinates:coords count:[routePoints count]];
     
 }
-
-
 -(void)cleanDetailMapView {
     
     [self removeAnnotations];
@@ -355,6 +348,5 @@
 	_myMapView = nil;
     
 }
-
 
 @end

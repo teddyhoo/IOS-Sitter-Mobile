@@ -6,8 +6,15 @@
 //  Copyright © 2019 Ted Hooban. All rights reserved.
 //
 
-#ifndef DetailHeaderView_h
-#define DetailHeaderView_h
+#import <UIKit/UIKit.h>
+#import "VisitsAndTracking.h"
+#import "DataClient.h"
+#import "VisitDetails.h"
+
+@interface DetailHeaderView : UIView
+
+-(instancetype) initWithFrame:(CGRect)frame andClientData:(DataClient*)clientDetails withVisitIInfo:(VisitDetails*)visitInfo;
+-(void)addPetImages;
 
 
-#endif /* DetailHeaderView_h */
+@end

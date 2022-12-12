@@ -19,16 +19,13 @@
     NSString *gender;
     NSString *birthday;
     NSString *fixed;
-    
     NSString *description;
     NSString *notes;
-    
+    UIImage *petProfileImage;
+
     NSMutableArray *customPetFields;
     NSMutableArray *customPetCheckBoxes;
     NSMutableArray *errataDocPet;
-    
-    UIImage *petProfileImage;
-    
     
 }
 @end
@@ -37,10 +34,59 @@
 
 @implementation PetProfile
 
+-(void) removePhoto {
+    petProfileImage = nil;
+}
+-(void) addProfileImage:(UIImage *)profileImage {
+    petProfileImage = profileImage;
+}
+
+-(void)addProfileImageData:(NSData*)profileImageData {
+    petProfileImage = [UIImage imageWithData:profileImageData];
+    
+}
+-(UIImage *)getProfilePhoto {
+    return petProfileImage;
+}
+-(NSString*) getPetID {
+    return petID;
+}
+-(NSString*) getPetColor {
+    return color;
+}
+-(NSString*) getPetName {
+    return name;
+}
+-(NSString*) getPetBreed {
+    return breed;
+}
+-(NSString*) getPetGender {
+    return gender;
+}
+-(NSString*) getPetType {
+    return type;
+}
+-(NSString*) getPetBirthday {
+    return birthday;
+}
+-(NSString*) getFixed {
+    return fixed;
+}
+-(NSString*) getPetDescription {
+    return description;
+}
+-(NSString*) getPetNote {
+    return notes;
+}
+-(NSArray*) getPetErrataDoc {
+    return errataDocPet;
+}
+-(NSArray*) getCustomPetFields {
+    return customPetFields;
+}
 
 -(void)setupBasicProfileInfo:(NSDictionary*) petProfileDictionary {
-
-
+    
     petID= [petProfileDictionary objectForKey:@"petid"];
     if (![self checkStringNull:petID]) {
         petID = @"NONE";
@@ -108,8 +154,6 @@
     NSArray *petKeys = [petProfileDictionary allKeys];    
     
     for (NSString *key in petKeys) {
-        
-        
         if ([[petProfileDictionary objectForKey:key] isKindOfClass:[NSDictionary class]]) {
             
             NSDictionary *customPetField = [petProfileDictionary objectForKey:key];
@@ -117,74 +161,15 @@
             if ([[customPetField objectForKey:@"value"] isKindOfClass:[NSDictionary class]]) {
                 NSDictionary *errataDictionary = (NSDictionary*)[customPetField objectForKey:@"value"];
                 [errataDocPet addObject:errataDictionary];
-                
             } 
             else if ([[customPetField objectForKey:@"value"]isEqual:[NSNull null]]) {
-                //NSLog(@" FOR KEY: %@ --> VAL IS NULL - ignore", key);
             } 
-            else if ([[customPetField objectForKey:@"value"] isEqualToString:@"0"] || 
-                       [[customPetField objectForKey:@"value"] isEqualToString:@"1"]) {
-                
-                [customPetCheckBoxes addObject:customPetField];
-            }
             else {                
                 [customPetFields addObject:customPetField];
             }
         }
     }    
-    /*NSLog(@"\n----------------------------------------\nPET INFO for ID: %@\n----------------------------------------\n", petID);
-    NSLog(@"Name: %@", name);
-    NSLog(@"Breed: %@", breed);
-    NSLog(@"Gender: %@", gender);
-    NSLog(@"Type: %@", type);
-    NSLog(@"Color: %@", color);
-    NSLog(@"--------------------");
-    NSLog(@"Notes: %@",notes);
-    NSLog(@"Description: %@", description);*/
-    
-    NSLog(@"------------CUSTOM PET FIELDS---------------------\n");
-    for (NSDictionary *customDictArray  in customPetFields) {
-        NSString *customPetLabel = [customDictArray objectForKey:@"label"];
-        NSString *customPetVal = [customDictArray objectForKey:@"value"];
-        NSString *serverCustVal = [customDictArray objectForKey:@"serverkey"];
-        //NSLog(@"[%@]  %@ -> %@", serverCustVal, customPetLabel, customPetVal );
-    }
-    
-    NSLog(@"------------CUSTOM PET CHECBOXES---------------------\n");
-    for (NSDictionary *checkDic in customPetCheckBoxes) {
-
-        if ([[checkDic objectForKey:@"value"] isEqualToString:@"1"]) {
-            //NSLog(@"%@ : YES", [checkDic objectForKey:@"label"]); 
-            
-        } else {
-            //NSLog(@"%@ : NO", [checkDic objectForKey:@"label"]); 
-
-        }
-    }
-    
-    NSLog(@"------------CUSTOM PET ERRATA---------------------\n");
-    for (NSDictionary *errata in errataDocPet) {
-        //NSLog(@" %@ of Type: %@", [errata objectForKey:@"label"], [errata objectForKey:@"mimetype"]);
-        //NSLog(@"URL: %@", [errata objectForKey:@"url"]);
-    }
-
 }
-
--(UIImage *)getProfilePhoto {
-    
-    NSData *data  = [[NSData alloc]init];
-    return [UIImage imageWithData:data ];
-    
-}
-
-
--(NSArray*) getVisitPhotos:(NSDate *)startDate untilDate:(NSDate *)endDate {
-    
-    return [[NSArray alloc]init];
-    
-}
-
-
 -(BOOL) checkStringNull:(NSString*)profileString {
     if (![profileString isEqual:[NSNull null]] && [profileString length] > 0) {
         return YES;

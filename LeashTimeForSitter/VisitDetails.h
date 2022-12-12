@@ -12,37 +12,31 @@
 
 
 @interface VisitDetails : NSObject {
-
-    NSMutableArray *petPhotos;
-    NSFileManager *fileManager;
-
 }
 
-@property (nonatomic) NSMutableArray *docItems;
-@property (nonatomic) NSMutableArray *profileChangeItems;
+//@property (nonatomic) NSMutableArray *docItems;
 
 @property (nonatomic) NSString *currentArriveVisitStatus;
 @property (nonatomic) NSString *currentCompleteVisitStatus;
 @property (nonatomic) NSString *imageUploadStatus;
 @property (nonatomic) NSString *mapSnapUploadStatus;
-@property (nonatomic) NSString *visitReportUploadStatus;
 @property (nonatomic) NSString *mapSnapTakeStatus;
+@property (nonatomic) NSString *visitReportUploadStatus;
+@property (nonatomic) NSString *photoSentDate;
+@property (nonatomic) NSString *mapSentDate;
+@property (nonatomic) NSString *sentCoordinatesStatus;
 
 // Visit actions
-@property (nonatomic) UIImage *mapSnapShotImage;
-@property (nonatomic,strong) NSString *mapSnapShotFilename;
-@property (nonatomic,strong) UIImage *currentPetImage;
-@property (nonatomic) NSMutableArray *petPhotosFileNames;
-@property (nonatomic,strong) UIImage *pawPrintForSession;
+
+@property (nonatomic) UIImage *pawPrintForSession;
 @property (nonatomic,copy) NSMutableArray *routePoints;
-@property (nonatomic,strong) NSString *payRate;
 
 @property (nonatomic,copy) NSDate *NSDateMarkArrive;
 @property (nonatomic,copy) NSDate *NSDateMarkComplete;
 @property (nonatomic,copy) NSString *dateTimeMarkArrive;
 @property (nonatomic,copy) NSString *dateTimeMarkComplete;
 @property (nonatomic,copy) NSString *dateTimeVisitReportSubmit;
-@property (nonatomic,copy) NSString *dateTimeRequestCancelation;
+@property (nonatomic,copy) NSString *dateTimeFinishVisitReport;
 @property (nonatomic) NSString *starttime;
 @property (nonatomic) NSString *endtime;
 @property (nonatomic,copy) NSString *endDateTime;
@@ -51,14 +45,12 @@
 @property NSString *completed;
 @property NSString *canceled;
 
-@property (nonatomic,copy) NSString *petImageFile;
+
 @property (nonatomic,copy) NSString *visitNoteBySitter;
 @property (nonatomic,copy) NSString *coordinateLatitudeMarkArrive;
 @property (nonatomic,copy) NSString *coordinateLongitudeMarkArrive;
 @property (nonatomic,copy) NSString *coordinateLatitudeMarkComplete;
 @property (nonatomic,copy) NSString *coordinateLongitudeMarkComplete;
-@property (nonatomic,copy) NSString *failPhotoUpload;
-@property (nonatomic,copy) NSString *failVisitReportSend;
 
 // Visit Details
 @property (nonatomic) NSString *appointmentid;
@@ -80,8 +72,16 @@
 
 // Client Details
 
-@property (nonatomic,copy) NSString *petImage;
-@property (nonatomic,copy) NSString *petBreed;
+@property (nonatomic,copy) NSString *homeAddress;
+@property (nonatomic,copy) NSString *clientEmail;
+@property (nonatomic,copy) NSString *street1;
+
+
+//@property (nonatomic) UIImage *mapSnapShotImage;
+//@property (nonatomic) NSString *mapSnapShotFilename;
+//@property (nonatomic,copy) NSString *petImageFile;
+//@property (nonatomic) UIImage *currentPetImage;
+/*@property (nonatomic,copy) NSString *petBreed;
 @property (nonatomic,copy) NSString *petAge;
 @property (nonatomic,copy) NSString *petNotes;
 @property (nonatomic,copy) NSString *petGender;
@@ -95,10 +95,7 @@
 @property (nonatomic,copy) NSString *vetName;
 @property (nonatomic,copy) NSString *clientPhone;
 @property (nonatomic,copy) NSString *clientPhone2;
-@property (nonatomic,copy) NSString *clientEmail;
 @property (nonatomic,copy) NSString *clientEmail2;
-@property (nonatomic,copy) NSString *homeAddress;
-@property (nonatomic,copy) NSString *street1;
 @property (nonatomic,copy) NSString *street2;
 @property (nonatomic,copy) NSString *zip;
 @property (nonatomic,copy) NSString *city;
@@ -107,9 +104,10 @@
 @property (nonatomic,copy) NSString *petNote1;
 @property (nonatomic,copy) NSString *petNote2;
 @property (nonatomic,copy) NSString *petNote3;
+*/
+
 
 @property BOOL errataDataDoc;
-@property BOOL profileUpdates;
 @property BOOL highpriority;
 @property BOOL pendingChange;
 @property BOOL noKeyRequired;
@@ -123,21 +121,13 @@
 @property BOOL cancelationPending;
 @property BOOL didPoo;
 @property BOOL didPee;
-@property BOOL wasHappy;
-@property BOOL wasSad;
-@property BOOL wasAngry;
-@property BOOL wasShy;
-@property BOOL wasHungry;
-@property BOOL wasSick;
+@property BOOL gaveTreat;
+@property BOOL gaveWater;
+@property BOOL dryTowel;
+@property BOOL gaveInjection;
+@property BOOL gaveMedication;
+@property BOOL didFeed;
 @property BOOL didPlay;
-@property BOOL wasCat;
-@property BOOL didScoopLitter;
-
-
-
-
-
--(NSMutableDictionary*)getMyVisitDetails:(NSString *)visitID;
 
 -(void)addVisitNoteToVisit:(NSString*)visitNote;
 
@@ -149,22 +139,40 @@
            latitude:(NSString *)coordinateLatitudeMarkComplete
           longitude:(NSString*)coordinateLongitudeMarkComplete;
 
--(void)addImageForPet:(UIImage*)petImage;
+-(void) setMarkArriveCompleteStatus:(NSString*)type andStatus:(NSString*)status;
 
--(void)addPointForRouteUsingCLLocation:(CLLocation*)location;
+-(void) addImageForPet:(UIImage*)petImage;
 
--(NSArray*)getPointForRoutes;
+-(void) resendImageForPet;
 
--(void)writeVisitDataToFile;
+-(void) setUploadStatusForPhoto:(NSString*)status;
 
--(void)syncVisitDetailFromFile;
+-(void) createMapSnapshot;
 
--(void)addErrataData:(NSArray*)errataArray;
-
--(NSMutableArray*)getErrataDocItems;
-
--(NSMutableArray*)getProfileUpdates;
+-(void) resendMapSnapShot;
 
 -(void) addMapsnapShotImageToVisit:(UIImage*) mapImg;
 
+-(void) setUploadStatusForMap:(NSString*)status;
+
+-(void) writeVisitDataToFile;
+
+-(void) syncVisitDetailFromFile;
+
+-(void) addPointForRouteUsingCLLocation:(CLLocation*)location;
+
+-(NSArray*) rebuildPointsForVisit;
+
+-(NSMutableDictionary*)getMyVisitDetails:(NSString *)visitID;
+
+-(NSArray*) getPointForRoutes;
+-(NSArray*) getErrataDocItems;
+-(NSArray*) getPetPhotos;
+-(UIImage*) getPetPhoto;
+-(UIImage*)getMapImage;
+-(BOOL) isPetImage;
+-(BOOL)isMapSnapShotImage;
+
+
 @end
+

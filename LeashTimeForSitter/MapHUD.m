@@ -41,7 +41,7 @@
 			[button setSelected:NO];
             [UIView animateWithDuration:0.3
                              animations:^{
-                                 self.frame = originRect;
+                                 self.frame = self->originRect;
                              } completion:^(BOOL finished) {
                              }];
         } else {
@@ -173,24 +173,15 @@
 		[showScreen addTarget:self action:@selector(showScreen:) forControlEvents:UIControlEventTouchUpInside];
 		showScreen.alpha = 0.77;
 		[self addSubview:showScreen];
-		
-
-		
-		
     }
     return self;
 }
 
-
-
 -(void) track1tap:(id)sender {
     
     if ([sender isKindOfClass:[UIButton class]]) {
-        
         UIButton *pawPrintButton = (UIButton*)sender;
-        
         NSString *routeID = [NSString stringWithFormat:@"%li",(long)pawPrintButton.tag];
-		
         [visitInfo removeFromSuperview];
         [currentArriveTime removeFromSuperview];
         [currentCompleteTime removeFromSuperview];
@@ -315,11 +306,9 @@
 
 
 -(void)createVisitItem:(NSString *)pawPrintID {
-	
 }
 
--(void)moveDiagnosticView {
-	
+-(void)moveDiagnosticView {	
 }
 
 -(void)setDelegate:(id)delegate {

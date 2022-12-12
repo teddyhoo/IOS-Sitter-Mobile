@@ -10,9 +10,6 @@
 
 @interface LoginView : UIView <UITextFieldDelegate>
 
-@property (nonatomic,strong) UITextField *loginName;
-@property (nonatomic,strong) UITextField *passWord;
-@property (nonatomic,strong) UIButton *loginButton;
-@property (nonatomic,strong) UILabel *failedLogin;
+-(void)successFullLogin;
 
 @end

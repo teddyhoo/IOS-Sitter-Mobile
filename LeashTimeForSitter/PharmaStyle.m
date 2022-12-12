@@ -2253,7 +2253,7 @@ static NSShadow* _shadowBlackDark0 = nil;
             NSMutableParagraphStyle* titleStyle = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
             titleStyle.alignment = NSTextAlignmentLeft;
 
-            NSDictionary* titleFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Helvetica-Bold" size: 24], NSForegroundColorAttributeName: PharmaStyle.colorAppWhite, NSParagraphStyleAttributeName: titleStyle};
+            NSDictionary* titleFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Lato-Regular" size: 24], NSForegroundColorAttributeName: PharmaStyle.colorAppWhite, NSParagraphStyleAttributeName: titleStyle};
 
             CGFloat titleTextHeight = [textContent boundingRectWithSize: CGSizeMake(titleRect.size.width, INFINITY)  options: NSStringDrawingUsesLineFragmentOrigin attributes: titleFontAttributes context: nil].size.height;
             CGContextSaveGState(context);
@@ -2675,7 +2675,7 @@ static NSShadow* _shadowBlackDark0 = nil;
         NSMutableParagraphStyle* textStyle = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
         textStyle.alignment = NSTextAlignmentLeft;
 
-        NSDictionary* textFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"EuphemiaUCAS-Bold" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: textStyle};
+        NSDictionary* textFontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Lato-Regular" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: textStyle};
 
         CGFloat textTextHeight = [textContent boundingRectWithSize: CGSizeMake(textRect.size.width, INFINITY)  options: NSStringDrawingUsesLineFragmentOrigin attributes: textFontAttributes context: nil].size.height;
         CGContextSaveGState(context);
@@ -2692,7 +2692,7 @@ static NSShadow* _shadowBlackDark0 = nil;
         NSMutableParagraphStyle* text2Style = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
         text2Style.alignment = NSTextAlignmentLeft;
 
-        NSDictionary* text2FontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"DINAlternate-Bold" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: text2Style};
+        NSDictionary* text2FontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Lato-Regular" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: text2Style};
 
         CGFloat text2TextHeight = [textContent boundingRectWithSize: CGSizeMake(text2Rect.size.width, INFINITY)  options: NSStringDrawingUsesLineFragmentOrigin attributes: text2FontAttributes context: nil].size.height;
         CGContextSaveGState(context);
@@ -2709,7 +2709,7 @@ static NSShadow* _shadowBlackDark0 = nil;
         NSMutableParagraphStyle* text3Style = NSMutableParagraphStyle.defaultParagraphStyle.mutableCopy;
         text3Style.alignment = NSTextAlignmentLeft;
 
-        NSDictionary* text3FontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"DINAlternate-Bold" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: text3Style};
+        NSDictionary* text3FontAttributes = @{NSFontAttributeName: [UIFont fontWithName: @"Lato-Regular" size: 25], NSForegroundColorAttributeName: UIColor.whiteColor, NSParagraphStyleAttributeName: text3Style};
 
         CGFloat text3TextHeight = [textContent boundingRectWithSize: CGSizeMake(text3Rect.size.width, INFINITY)  options: NSStringDrawingUsesLineFragmentOrigin attributes: text3FontAttributes context: nil].size.height;
         CGContextSaveGState(context);

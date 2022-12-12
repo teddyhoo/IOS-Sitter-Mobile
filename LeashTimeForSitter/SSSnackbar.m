@@ -8,7 +8,6 @@
 
 #import <Foundation/Foundation.h>
 #import "SSSnackbar.h"
-//#import "SSSeparatorView.h"
 #import "VisitsAndTracking.h"
 #import "VisitDetails.h"
 #import "FloatingModalView.h"
@@ -31,11 +30,8 @@ static SSSnackbar *currentlyVisibleSnackbar = nil;
 
 @implementation SSSnackbar
 
-
 int fontSize;
 VisitDetails *currentVisit;
-
-
 
 + (instancetype)snackbarWithMessage:(NSString *)message
 						 actionText:(NSString *)actionText
@@ -68,12 +64,15 @@ VisitDetails *currentVisit;
 		if([[[VisitsAndTracking sharedInstance] tellDeviceType] isEqualToString:@"iPhone6P"]) {
 			fontSize = 18;
 		} else if([[[VisitsAndTracking sharedInstance] tellDeviceType] isEqualToString:@"iPhone6"]) {
-			fontSize = 16;
+			fontSize = 18;
 		} else if([[[VisitsAndTracking sharedInstance] tellDeviceType] isEqualToString:@"iPhone5"]) {
-			fontSize = 15;
+			fontSize = 18;
 		} else {
-			fontSize = 16;
+			fontSize = 18;
 		}
+        
+        fontSize = 18;
+        
 		_messageLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 0, 0)];
 		_messageLabel.text = message;
 		_messageLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -84,7 +83,7 @@ VisitDetails *currentVisit;
 		
 		_actionButton = [UIButton buttonWithType:UIButtonTypeSystem];
 		_actionButton.translatesAutoresizingMaskIntoConstraints = NO;
-		_actionButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:20];
+		_actionButton.titleLabel.font = [UIFont fontWithName:@"Lato-Regular" size:20];
 		[_actionButton setTitle:actionText forState:UIControlStateNormal];
 		[_actionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
 		[_actionButton sizeToFit];
@@ -115,7 +114,7 @@ VisitDetails *currentVisit;
 	CGContextRef ctx = UIGraphicsGetCurrentContext();
 	CGContextSaveGState(ctx);
 	
-	[[UIColor colorWithWhite:0.1 alpha:0.9] setFill];
+	[[UIColor colorWithWhite:0.1 alpha:1.0] setFill];
 	UIBezierPath *clippath = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:3];
 	[clippath fill];
 	

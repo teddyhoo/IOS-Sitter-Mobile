@@ -1,0 +1,6 @@
+framework module Pods_LeashTimeForSitter_LeashTimeForSitterUITests {
+  umbrella header "Pods-LeashTimeForSitter-LeashTimeForSitterUITests-umbrella.h"
+
+  export *
+  module * { export * }
+}

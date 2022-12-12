@@ -1,14 +1,108 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-   ColorPalette.plist
-   LeashTimeForSitter
-
-   Created by Edward Hooban on 8/25/19.
-   Copyright (c) 2019 Ted Hooban. All rights reserved.
--->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-    <dict>
-    
-    </dict>
+<array>
+	<dict>
+		<key>name</key>
+		<string>cell-success</string>
+		<key>R</key>
+		<string>232</string>
+		<key>G</key>
+		<string>256</string>
+		<key>B</key>
+		<string>204</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-success-dark</string>
+		<key>R</key>
+		<string>213</string>
+		<key>G</key>
+		<string>240</string>
+		<key>B</key>
+		<string>171</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-info</string>
+		<key>R</key>
+		<string>205</string>
+		<key>G</key>
+		<string>232</string>
+		<key>B</key>
+		<string>256</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-info-dark</string>
+		<key>R</key>
+		<string>66</string>
+		<key>G</key>
+		<string>135</string>
+		<key>B</key>
+		<string>245</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-danger</string>
+		<key>R</key>
+		<string>245</string>
+		<key>G</key>
+		<string>198</string>
+		<key>B</key>
+		<string>198</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-danger-dark</string>
+		<key>R</key>
+		<string>240</string>
+		<key>G</key>
+		<string>168</string>
+		<key>B</key>
+		<string>168</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-warning</string>
+		<key>R</key>
+		<string>253</string>
+		<key>G</key>
+		<string>244</string>
+		<key>New item</key>
+		<string></string>
+		<key>B</key>
+		<string>191</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-warning-dark</string>
+		<key>R</key>
+		<string>247</string>
+		<key>G</key>
+		<string>235</string>
+		<key>B</key>
+		<string>166</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-default</string>
+		<key>R</key>
+		<string>238</string>
+		<key>G</key>
+		<string>238</string>
+		<key>B</key>
+		<string>238</string>
+	</dict>
+	<dict>
+		<key>name</key>
+		<string>cell-mdefault-dark</string>
+		<key>R</key>
+		<string>221</string>
+		<key>G</key>
+		<string>221</string>
+		<key>B</key>
+		<string>221</string>
+	</dict>
+</array>
 </plist>

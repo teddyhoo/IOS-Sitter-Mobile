@@ -11,7 +11,9 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface DebugHeaderView : UIView
-
+-(void)updateViewMarkComplete;
+-(void)cleanView;
+-(void)showUserErrorLog;
 @end
 
 NS_ASSUME_NONNULL_END

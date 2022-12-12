@@ -21,23 +21,33 @@
     NSObject <EMAccordionTableDelegate> *emDelegate;
     EMAnimationType animationType;
     NSInteger showedCell;
+    //UITableView *dTableView;
+    UIImage *closedSectionIcon;
+    UIImage *openedSectionIcon;
 }
 
 @end
 
 @implementation EMAccordionTableViewController
 
-@synthesize closedSectionIcon = _closedSectionIcon;
-@synthesize openedSectionIcon = _openedSectionIcon;
-@synthesize parallaxHeaderView = _parallaxHeaderView;
+//@synthesize closedSectionIcon = _closedSectionIcon;
+//@synthesize openedSectionIcon = _openedSectionIcon;
+//@synthesize parallaxHeaderView = _parallaxHeaderView;
 @synthesize tableView = _tableView;
 @synthesize sectionsHeaders = _sectionsHeaders;
 @synthesize defaultOpenedSection = _defaultOpenedSection;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
     showedCell = 0;
+}
+
+-(void) setClosedSectionIcon:(UIImage*)closeIcon {
+    closedSectionIcon = closeIcon;
+}
+
+-(void) setOpenedSectionIcon:(UIImage*)openIcon {
+    openedSectionIcon = openIcon;
 }
 
 - (void)didReceiveMemoryWarning {
@@ -48,15 +58,24 @@
 - (void) setEmTableView:(UITableView *)tv {
     self.view = [[UIView alloc] initWithFrame:tv.frame];
     
+    //dTableView  = tv;
+    //[dTableView setDataSource:self];
+    //[dTableView setDelegate:self];
+    //[self.view addSubview:dTableView];
     _tableView = tv;
     [_tableView setDataSource:self];
     [_tableView setDelegate:self];
-    [self.view addSubview:_tableView];
+    
+    
 }
 
 - (id) initWithTable:(UITableView *)tableView withAnimationType:(EMAnimationType) type {
     if (self = [super init]) {
         self.view = [[UIView alloc] initWithFrame:tableView.frame];
+        //dTableView = tableView;
+        //[dTableView setDataSource:self];
+        //[dTableView setDelegate:self];
+        
         _tableView = tableView;
         [_tableView setDataSource:self];
         [_tableView setDelegate:self];
@@ -68,14 +87,10 @@
         
         self.sectionsHeaders = [[NSMutableArray alloc] initWithCapacity:10];
     }
-    
     return self;
 }
 
-
-
 - (void) addAccordionSection: (EMAccordionSection *) section initiallyOpened:(BOOL)opened {
-
     [sections addObject:section];
 	NSUInteger count = [sections count]-1;
     if (opened) {
@@ -87,18 +102,19 @@
 }
 
 - (void) setParallaxHeaderView:(EMAccordionTableParallaxHeaderView *)parallaxHeaderView {
-    _parallaxHeaderView = parallaxHeaderView;
-    
-    if (_tableView) {
-        [_tableView setTableHeaderView:_parallaxHeaderView];
+    //_parallaxHeaderView = parallaxHeaderView;
+    if(_tableView) {
+        [_tableView setTableHeaderView:parallaxHeaderView];
     }
+   // if (dTableView) {
+    //    [dTableView setTableHeaderView:_parallaxHeaderView];
+    //}
 }
 
 
 #pragma mark UITableViewDataSource
 - (NSInteger) numberOfSectionsInTableView:(UITableView *)tableView {
     return sections.count;
-    
 }
 
 - (NSInteger) tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -173,7 +189,7 @@
 
         } completion:^(BOOL finished) {
 
-			//[_tableView reloadData];
+			//[dTableView reloadData];
 
 						}];
     }*/
@@ -209,7 +225,7 @@
     [sectionView3 setBackgroundColor:[PharmaStyle colorAppWhite]];
     
     UILabel *cellTitle = [[UILabel alloc] initWithFrame:CGRectMake(45.0f, 0.0f, self.tableView.frame.size.width - 50.0f, sectionView.bounds.size.height)];
-    [cellTitle setFont:[UIFont fontWithName:@"Langdon" size:28]];
+    [cellTitle setFont:[UIFont fontWithName:@"Lato-Regular" size:28]];
     [cellTitle setText:emAccordionSection.title];
     [cellTitle setTextColor:[PharmaStyle colorAppBlack]];
     [cellTitle setBackgroundColor:[UIColor clearColor]];
@@ -228,28 +244,26 @@
     [accessoryIV setBackgroundColor:[UIColor clearColor]];
     [accessoryIV setTag:section];
     
-    if (value)
-        [accessoryIV setImage:self.openedSectionIcon];
-    else
-        [accessoryIV setImage:self.closedSectionIcon];
+    if (value) {
+       // [accessoryIV setImage:self.openedSectionIcon];
+        [accessoryIV setImage:closedSectionIcon];
+
+    } else {
     
+        //[accessoryIV setImage:self.closedSectionIcon];
+        [accessoryIV setImage:closedSectionIcon];
+    
+    }
     [sectionView addSubview:accessoryIV];
-    
-    
     UIView *thinLine = [[UIView alloc]initWithFrame:CGRectMake(0, sectionView.frame.size.height-1, sectionView.frame.size.width,1)];
     [thinLine setBackgroundColor:[PharmaStyle colorBlueShadow]];
     [sectionView addSubview:thinLine];
-    
-
     return sectionView;
 }
 
-//- (IBAction)openTheSection:(id)sender {
 -(void)openTheSection:(id)sender{
     int index = (int)[sender tag]; //- kSectionTag;
-
 	NSIndexSet *sectionSet;
-
 	if([sectionsOpened count] > 0) {
 		NSUInteger sectionCount = [sectionsOpened count];
 		NSRange indexRange = NSMakeRange(0, sectionCount);
@@ -267,7 +281,8 @@
 			}
 		}
 	}
-	[_tableView reloadData];
+	//[dTableView reloadData];
+    [_tableView reloadData];
     NSNumber *updatedValue = [NSNumber numberWithBool:!value];
     [sectionsOpened setObject:updatedValue atIndexedSubscript:index];
 
@@ -275,9 +290,8 @@
 	if(sectionSet != nil)
 		[self.tableView reloadSections:sectionSet withRowAnimation:UITableViewRowAnimationAutomatic];
 
-
-	[_tableView scrollToNearestSelectedRowAtScrollPosition:UITableViewScrollPositionTop animated:NO];
-
+    [_tableView scrollToNearestSelectedRowAtScrollPosition:UITableViewScrollPositionTop animated:NO];
+	//[dTableView scrollToNearestSelectedRowAtScrollPosition:UITableViewScrollPositionTop animated:NO];
 	//if (!value)
 	//	[self showCellsWithAnimation];
     
@@ -306,6 +320,8 @@
     rotationAndPerspectiveTransform = CATransform3DRotate(rotationAndPerspectiveTransform, DEGREES_TO_RADIANS(-90), 1.0f, 0.0f, 0.0f);
 
 	
+    UITableView *tempTable = _tableView;
+    
     [UIView animateWithDuration:0.5f
                           delay:0.2f
          usingSpringWithDamping:0.9f
@@ -314,9 +330,9 @@
                             card.alpha = 1.0f;
                             card.layer.transform = rotationAndPerspectiveTransform;
                         } completion:^(BOOL finished) {
-                            showedCell++;
+                            self->showedCell++;
                             //[self showCellsWithAnimation];
-							[_tableView reloadData];
+                            [tempTable reloadData];
                             
                         }];
     

@@ -8,84 +8,111 @@
 
 #import "DetailAccordionViewController.h"
 #import "VisitsAndTracking.h"
-#import "DataClient.h"
-#import "VisitDetails.h"
-#import "EMAccordionSection.h"
-#import "PharmaStyle.h"
 #import "DetailsMapView.h"
 #import "FloatingModalView.h"
+#import "EMAccordionSection.h"
+
+#import "DataClient.h"
+#import "VisitDetails.h"
+#import "PetProfile.h"
+
+#import "PharmaStyle.h"
 #import "JzStyleKit.h"
-#import "FloatingModalView.h"
+#import <WebKit/WebKit.h>
+
 #define kTableHeaderHeight 70.0f
 #define kTableRowHeight 80.0f
 
 
-@interface DetailAccordionViewController () <UIScrollViewDelegate>
+@interface DetailAccordionViewController () <UIScrollViewDelegate,EMAccordionTableDelegate, MFMessageComposeViewControllerDelegate>
 
 @end
 
 @implementation DetailAccordionViewController {
     
+    EMAccordionTableViewController *emTV;
+    EMAccordionTableParallaxHeaderView *emParallaxHeader;
+    DetailsMapView *myMapView;
+    UIView *detailView;
+    UIView *detailMoreDetailView;
+    UIView *flagView;
+    
     NSMutableArray *dataForSections;
     NSMutableArray *sections;
 	NSMutableDictionary *flagIndex;
     UIButton *backButton;
-    UIView *detailView;
-	UIView *detailMoreDetailView;
-    UIView *flagView;
     UIButton *arriveButton;
-	DetailsMapView *myMapView;  
 
     DataClient *currentClient;
     VisitDetails *currentVisit;
+    VisitsAndTracking *sharedVisits;
     
     BOOL isIphone4;
     BOOL isIphone5;
     BOOL isIphone6;
     BOOL isIphone6P;
+    BOOL isXR;
     BOOL isShowingPopup;
     BOOL mapOnScreen;
     
     CGFloat origin;
+    float cellHeight;
     int onWhichSection;
     float tableRowHeight;
     
     NSString *visitIDSent;
     NSString *hasKey;
+    
+    int numCharAcross;
+    int fontSizeGlobal;
 }
 
 -(instancetype)init {
     if(self = [super init]) {
         
-        VisitsAndTracking *sharedVisits = [VisitsAndTracking sharedInstance];
+        sharedVisits = [VisitsAndTracking sharedInstance];
         NSString *theDeviceType = [sharedVisits tellDeviceType];
         onWhichSection = 0;
         isShowingPopup = NO;
+        numCharAcross  = 20;
+        fontSizeGlobal = 18;
         
         if ([theDeviceType isEqualToString:@"iPhone6P"]) {
             isIphone6P = YES;
             isIphone6 = NO;
             isIphone5 = NO;
             isIphone4 = NO;
+            isXR = NO;
+            numCharAcross  = 25;
+            fontSizeGlobal = 18;
             
-        } else if ([theDeviceType isEqualToString:@"iPhone6"]) {
+        } 
+        else if ([theDeviceType isEqualToString:@"XR"]) {
             isIphone6P = NO;
-
-            isIphone6 = YES;
+            isIphone6 = NO;
             isIphone5 = NO;
             isIphone4 = NO;
+            isXR = YES;
+            numCharAcross  = 30;
+            fontSizeGlobal = 18;
             
-        } else if ([theDeviceType isEqualToString:@"iPhone5"]) {
+        }  
+        else if ([theDeviceType isEqualToString:@"iPhone5"]) {
             isIphone5 = YES;
             isIphone4 = NO;
             isIphone6P = NO;
             isIphone6 = NO;
+            fontSizeGlobal = 16;
+            numCharAcross  = 15;
 
-        } else {
+        }
+        else if([theDeviceType isEqualToString:@"iPhoneX"]) {
             isIphone4 = YES;
             isIphone5 = NO;
             isIphone6P = NO;
             isIphone6 = NO;
+            fontSizeGlobal = 16;
+            numCharAcross  = 15;
         }
         
         sections = [[NSMutableArray alloc]initWithCapacity:100];
@@ -93,377 +120,211 @@
 		NSString *pListData = [[NSBundle mainBundle]
 							   pathForResource:@"flagID"
 							   ofType:@"plist"];
-		
 		flagIndex = [[NSMutableDictionary alloc] initWithContentsOfFile:pListData];
-		
+        		
 	}
     return self;
 }
 
+-(UIView*)createHeaderView:(float)withParallaxHeight {
+    
+    UIView *headerSetup = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, withParallaxHeight)];
+    
+    UIView *back2 = [[UIView alloc]initWithFrame:headerSetup.frame];
+    headerSetup.backgroundColor = [PharmaStyle colorBlue];
+    [back2 setBackgroundColor:[PharmaStyle colorBlueShadow]];
+    back2.alpha = 0.2;
+    
+    backButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    if ([[sharedVisits tellDeviceType]isEqualToString:@"iPhoneX"]) {
+        backButton.frame = CGRectMake(0,40,32,32);
+    } else {
+        backButton.frame = CGRectMake(0,0,32,32);
+    }
+    [backButton setBackgroundImage:[UIImage imageNamed:@"btn-back"] forState:UIControlStateNormal];
+    [backButton addTarget:self action:@selector(backButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
+    
+    [headerSetup addSubview:back2];
+    [headerSetup addSubview:backButton];
+    
+    [self addPetImages:headerSetup];
+    [self addControlIcons:headerSetup];
+    [self addClientFlags:flagView withHeader:headerSetup];
+        
+    return headerSetup;
+    
+}
+
+-(void)setupViews {
+    
+    float parallaxHeight = 220.0;
+    if([[currentClient getPetProfiles] count] > 3) {
+        parallaxHeight = 290.0;
+    }
+    UITableView *tableView = [[UITableView alloc]initWithFrame:CGRectMake(0.0f, 0.0f, self.view.bounds.size.width, self.view.bounds.size.height) style:UITableViewStylePlain];
+    [tableView setSectionHeaderHeight:kTableHeaderHeight];
+
+    UIView *headerView = [self createHeaderView:parallaxHeight];
+    //[[UIView alloc]initWithFrame:CGRectMake(0,0,self.view.frame.size.width,parallaxHeight)];
+    
+    emParallaxHeader = [[EMAccordionTableParallaxHeaderView alloc] initWithFrame:CGRectMake(0.0f,0.0f,self.view.frame.size.width,parallaxHeight)];
+    [emParallaxHeader addSubview:headerView];
+    
+    
+    emTV = [[EMAccordionTableViewController alloc]  initWithTable:tableView withAnimationType:EMAnimationTypeNone];
+    [emTV setDelegate:self];
+    [emTV setClosedSectionIcon:[UIImage imageNamed:@"down-arrow-thick"]];
+    [emTV setOpenedSectionIcon:[UIImage imageNamed:@"up-arrow-thick"]];
+    emTV.defaultOpenedSection = -1;
+    emTV.parallaxHeaderView = emParallaxHeader;
+    [self.view addSubview:emTV.tableView];
+
+    [self addDataSections];
+    //[self.view addSubview:backButton];
+    /*[self addPetImages:headerView];
+    [self addControlIcons:headerView];
+    [self addClientFlags:flagView withHeader:headerView];*/
+    //[self addMapView:currentVisit];'
+    
+}
+
 -(void)viewDidAppear:(BOOL)animated {
-	
-	[super viewDidAppear:YES];
-	
-	UITableView *tableView = [[UITableView alloc]initWithFrame:CGRectMake(0.0f, 0.0f, self.view.bounds.size.width, self.view.bounds.size.height-60) style:UITableViewStylePlain];
-	[tableView setSectionHeaderHeight:kTableHeaderHeight];
-	_emTV = [[EMAccordionTableViewController alloc] initWithTable:tableView withAnimationType:EMAnimationTypeNone];
-	[_emTV setDelegate:self];
-	[_emTV setClosedSectionIcon:[UIImage imageNamed:@"down-arrow-thick"]];
-	[_emTV setOpenedSectionIcon:[UIImage imageNamed:@"up-arrow-thick"]];
-	_emTV.defaultOpenedSection = -1;
-		
-	if([currentClient.petImages count] > 3) {
-		_emParallaxHeaderView = [[EMAccordionTableParallaxHeaderView alloc] initWithFrame:CGRectMake(0.0f, 0.0f, self.view.frame.size.width, 290)];
-	} else {
-		_emParallaxHeaderView = [[EMAccordionTableParallaxHeaderView alloc] initWithFrame:CGRectMake(0.0f, 0.0f, self.view.frame.size.width, 220)];
-	}
-	
-	UIView *headerView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, _emParallaxHeaderView.frame.size.width, _emParallaxHeaderView.frame.size.height)];
-	headerView.backgroundColor = [PharmaStyle colorBlue];
 
-	UIView *back2 = [[UIView alloc]initWithFrame:_emParallaxHeaderView.frame];
-	[back2 setBackgroundColor:[PharmaStyle colorBlueShadow]];
-	[headerView addSubview:back2];
-	back2.alpha = 0.2;
-	
-	flagView = [[UIView alloc]initWithFrame:CGRectMake(100, headerView.frame.size.height-40, self.view.frame.size.width-140, 60)];
-	flagView.backgroundColor = [UIColor redColor];
-	
-	_emTV.parallaxHeaderView = _emParallaxHeaderView;
-	
-	backButton = [UIButton buttonWithType:UIButtonTypeCustom];
-	backButton.frame = CGRectMake(0,0,32,32);
-	[backButton setBackgroundImage:[UIImage imageNamed:@"left-arrow256"]
-						  forState:UIControlStateNormal];
-	[backButton addTarget:self
-				   action:@selector(backButtonClicked:)
-		 forControlEvents:UIControlEventTouchUpInside];
-	
-	[self.view addSubview:_emTV.tableView];
-	[self.view addSubview:backButton];
-	[_emParallaxHeaderView addSubview:headerView];
-	[self addDataSections];
-	[self addPetImages:headerView];
-	
-	dispatch_async(dispatch_get_main_queue(), ^{
+    [super viewDidAppear:YES];
+    NSLog(@"View did appear");
+    
+}
 
-		[self addControlIcons:headerView];
-	});
-	
-	dispatch_async(dispatch_get_main_queue(), ^{
-		[self addClientFlags:flagView withHeader:headerView];
-	});
-	
-	dispatch_async(dispatch_get_main_queue(), ^ {
-		[self addMapView:currentVisit];
-	});
+-(void)didMoveToParentViewController:(UIViewController *)parent {
+        [self setupViews];
 }
 
 -(void)addPetImages:(UIView*)headerView {
 	
 	UIView *petPicFrameView;
-	
-	if (isIphone6P) {
-				
-		int xPos = 15;
-		int yPos = 20;
-		int dimensionSize = 108;
-		int dimensionSizePicture = 98;
-		int labelOffset = 70;
-		int numberPets = (int)[currentClient.petImages count];
-		
-		
+    NSArray *petProfiles = [currentClient getPetProfiles];
+    int numberPets = (int)[petProfiles count];
+    int xPos = 15;
+    int yPos = 20;
+    int dimensionSize = 108;
+    int dimensionSizePicture = 98;
+    int labelOffset = 70;
+    int fontSize = 18;
+    
+	if (isIphone6P || isXR) {
+        xPos = 15;
+        yPos = 20;
+        dimensionSize = 108;
+        dimensionSizePicture = 98;
+        labelOffset = 70;
+        
 		if (numberPets > 3) {
 			labelOffset = 55;
 			dimensionSize = 80;
 			dimensionSizePicture = 70;
 			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets-80,200)];
-			
 		} else {
 			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
 			
 		}
-		petPicFrameView.userInteractionEnabled = YES;
-		petPicFrameView.tag = 100;
-		
-		int petCounter = 0;
-		
-		for (NSString *petID in currentClient.petImages) {
-			
-			if(petCounter == 4) {
-				yPos +=100;
-				xPos = 15;
-			}
-			dispatch_async(dispatch_get_main_queue(), ^{
-				UIImageView *currentPicView = [[UIImageView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSizePicture, dimensionSizePicture)];
-				[currentPicView setImage:[currentClient.petImages objectForKey:petID]];
-				CAShapeLayer *circle = [CAShapeLayer layer];
-				UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, currentPicView.frame.size.width, currentPicView.frame.size.height) cornerRadius:MAX(currentPicView.frame.size.width, currentPicView.frame.size.height)];
-				circle.path = circularPath.CGPath;
-				circle.fillColor = [UIColor whiteColor].CGColor;
-				circle.strokeColor = [UIColor whiteColor].CGColor;
-				circle.lineWidth = 1;
-				currentPicView.layer.mask=circle;
+    } else if (isIphone6) {
+        xPos = 35;
+        yPos = 30;
+        dimensionSize = 94;
+        dimensionSizePicture = 82;            
+        if (numberPets > 3) {
+            dimensionSize = 50;
+            dimensionSizePicture = 44;
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets-60,170)];
+            fontSize = 14;
+        } else {
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
+        }
+    } else if (isIphone5) {
+        xPos = 35;
+        yPos = 50;
+        dimensionSize = 76;
+        dimensionSizePicture = 64;        
+        if (numberPets > 3) {
+            dimensionSize = 44;
+            dimensionSizePicture = 36;
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize*4)];
+        } else {
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
+        }
+    }
+    else {
+        
+        xPos = 35;
+        yPos = 50;
+        dimensionSize = 76;
+        dimensionSizePicture = 64;
+        if (numberPets > 3) {
+            dimensionSize = 44;
+            dimensionSizePicture = 36;
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize*4)];
+        } else {
+            petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
+        }
+    }
+    
+    petPicFrameView.userInteractionEnabled = YES;
+    petPicFrameView.tag = 100;
+    int petCounter = 0;
+    
+    for (PetProfile *pet in petProfiles) {
+        if(petCounter == 4) {
+            yPos +=100;
+            xPos = 15;
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIImageView *currentPicView = [[UIImageView alloc]initWithFrame:CGRectMake(xPos,
+                                                                                       yPos,
+                                                                                       dimensionSizePicture,
+                                                                                       dimensionSizePicture)];
+            
+            UIImage *petImage = [pet getProfilePhoto];
+            CGSize petImgSize = [petImage size];
+            
+            NSLog(@"Pet image size: %f, %f", petImgSize.width, petImgSize.height);
+            [currentPicView setImage:[pet getProfilePhoto]];
+            
+            
+            CAShapeLayer *circle = [CAShapeLayer layer];
+            UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, currentPicView.frame.size.width, currentPicView.frame.size.height) cornerRadius:MAX(currentPicView.frame.size.width, currentPicView.frame.size.height)];
+            circle.path = circularPath.CGPath;
+            circle.fillColor = [UIColor whiteColor].CGColor;
+            circle.strokeColor = [UIColor whiteColor].CGColor;
+            circle.lineWidth = 1;
+            currentPicView.layer.mask=circle;
 
-				int petIDTag = 0;
-				for (NSDictionary *petKey in currentClient.petInfo) {
-					if ([[petKey objectForKey:@"name"]isEqualToString:petID]) {
-						petIDTag = [[petKey objectForKey:@"petid"]intValue];
-					}
-				}
-				
-				NSString *petIDupper = [petID uppercaseString];
-				UIButton *petImageButton = [UIButton buttonWithType:UIButtonTypeCustom];
-				petImageButton.frame = CGRectMake(xPos, yPos-labelOffset, dimensionSize, dimensionSize);
-				[petImageButton setTitleColor:[PharmaStyle colorAppWhite] forState:UIControlStateNormal];
-				petImageButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:20];
-				[petImageButton setTitle:petIDupper forState:UIControlStateNormal];
-				petImageButton.tag = petIDTag;
-				[petImageButton addTarget:self
-								   action:@selector(petImageClick:)
-						 forControlEvents:UIControlEventTouchUpInside];
-				
-				[petPicFrameView addSubview:petImageButton];
-				[petPicFrameView addSubview:currentPicView];
-			});
-			
-			if (numberPets > 3) {
-				xPos += 80;
-			} else {
-				xPos += 110;
-			}
-			petCounter++;
-			
-		}
-	}
-	
-	else if (isIphone6) {
-		int xPos = 35;
-		int yPos = 30;
-		int dimensionSize = 94;
-		int dimensionSizePicture = 82;
-		int fontSize = 18;
-		
-		int numberPets = (int)[currentClient.petImages count];
-		
-		if (numberPets > 3) {
-			dimensionSize = 50;
-			dimensionSizePicture = 44;
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets-60,170)];
-			fontSize = 14;
-			
-		} else {
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
-		}
-		petPicFrameView.userInteractionEnabled = YES;
-		petPicFrameView.tag = 100;
-		
-		xPos = 0;
-		yPos = 0;
-		int petCounter = 0;
-		
-		for (NSString *petID in currentClient.petImages) {
-			if(petCounter == 4) {
-				yPos +=70;
-				xPos = 0;
-			}
-			dispatch_async(dispatch_get_main_queue(), ^{
-				UIImageView *currentPicView = [[UIImageView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSizePicture, dimensionSizePicture)];
-				[currentPicView setImage:[currentClient.petImages objectForKey:petID]];
-				
-				CAShapeLayer *circle = [CAShapeLayer layer];
-				UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, currentPicView.frame.size.width, currentPicView.frame.size.height) cornerRadius:MAX(currentPicView.frame.size.width, currentPicView.frame.size.height)];
-				circle.path = circularPath.CGPath;
-				circle.fillColor = [UIColor whiteColor].CGColor;
-				circle.strokeColor = [UIColor whiteColor].CGColor;
-				circle.lineWidth = 1;
-				currentPicView.layer.mask=circle;
-				int petIDTag = 0;
-				for (NSDictionary *petKey in currentClient.petInfo) {
-					if ([[petKey objectForKey:@"name"]isEqualToString:petID]) {
-						petIDTag = [[petKey objectForKey:@"petid"]intValue];
-					}
-				}
-				
-				UIButton *petImageButton = [UIButton buttonWithType:UIButtonTypeCustom];
-				petImageButton.frame = CGRectMake(xPos-20, yPos, dimensionSize+30, dimensionSize*2);
-				[petImageButton setTitleColor:[PharmaStyle colorAppWhite] forState:UIControlStateNormal];
-				petImageButton.titleLabel.font = [UIFont fontWithName:@"Lato-Regular" size:fontSize];
-				[petImageButton setTitle:petID forState:UIControlStateNormal];
-				petImageButton.tag = petIDTag;
-				[petImageButton addTarget:self
-								   action:@selector(petImageClick:)
-						 forControlEvents:UIControlEventTouchUpInside];
-				
-				
-				[petPicFrameView addSubview:currentPicView];
-				[petPicFrameView addSubview:petImageButton];
-
-			});
-
-			if (numberPets > 3) {
-				xPos += 80;
-			} else {
-				xPos += 94;
-			}
-			petCounter++;
-		}
-	}
-	
-	else if (isIphone5) {
-				
-		int xPos = 35;
-		int yPos = 50;
-		int dimensionSize = 76;
-		int dimensionSizePicture = 64;
-		int numberPets = (int)[currentClient.petImages count];
-		
-		if (numberPets > 3) {
-			dimensionSize = 44;
-			dimensionSizePicture = 36;
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize*4)];
-			
-		} else {
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
-			
-		}
-		
-		petPicFrameView.userInteractionEnabled = YES;
-		petPicFrameView.tag = 100;
-		
-		xPos = 0;
-		yPos = 0;
-		int petCounter = 0;
-		
-		for (NSString *petID in currentClient.petImages) {
-			if(petCounter == 4) {
-				
-				yPos +=70;
-				xPos = 0;
-				
-			}
-			
-			dispatch_async(dispatch_get_main_queue(), ^{
-				
-				UIImageView *currentPicView = [[UIImageView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSizePicture, dimensionSizePicture)];
-				[currentPicView setImage:[currentClient.petImages objectForKey:petID]];
-				
-				CAShapeLayer *circle = [CAShapeLayer layer];
-				UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, currentPicView.frame.size.width, currentPicView.frame.size.height) cornerRadius:MAX(currentPicView.frame.size.width, currentPicView.frame.size.height)];
-				circle.path = circularPath.CGPath;
-				circle.fillColor = [UIColor whiteColor].CGColor;
-				circle.strokeColor = [UIColor whiteColor].CGColor;
-				circle.lineWidth = 1;
-				
-				currentPicView.layer.mask=circle;
-				int petIDTag = 0;
-				for (NSDictionary *petKey in currentClient.petInfo) {
-					if ([[petKey objectForKey:@"name"]isEqualToString:petID]) {
-						petIDTag = [[petKey objectForKey:@"petid"]intValue];
-					}
-				}
-								
-				UIButton *petImageButton = [UIButton buttonWithType:UIButtonTypeCustom];
-				petImageButton.frame = CGRectMake(xPos, yPos, dimensionSize, dimensionSize*2);
-				[petImageButton setTitleColor:[PharmaStyle colorAppWhite] forState:UIControlStateNormal];
-				petImageButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:16];
-				[petImageButton setTitle:petID forState:UIControlStateNormal];
-				petImageButton.tag = petIDTag;
-				[petImageButton addTarget:self
-								   action:@selector(petImageClick:)
-						 forControlEvents:UIControlEventTouchUpInside];
-				
-				
-				[petPicFrameView addSubview:currentPicView];
-				[petPicFrameView addSubview:petImageButton];
-			});
-			
-			if (numberPets > 3) {
-				xPos +=70;
-			} else {
-				xPos += 70;
-			}
-			petCounter++;
-		}
-	}
-	
-	else if (isIphone4) {
-		
-		int xPos = 35;
-		int yPos = 50;
-		int dimensionSize = 76;
-		int dimensionSizePicture = 64;
-		
-		int numberPets = (int)[currentClient.petImages count];
-		
-		if (numberPets > 3) {
-			dimensionSize = 44;
-			dimensionSizePicture = 36;
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize*4)];
-		} else {
-			petPicFrameView = [[UIView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSize*numberPets,dimensionSize)];
-		}
-		
-		petPicFrameView.userInteractionEnabled = YES;
-		petPicFrameView.tag = 100;
-		
-		xPos = 0;
-		yPos = 0;
-		int petCounter = 0;
-		
-		for (NSString *petID in currentClient.petImages) {
-			if(petCounter == 4) {
-				yPos +=70;
-				xPos = 0;
-				
-			}
-			dispatch_async(dispatch_get_main_queue(), ^{
-
-				UIImageView *currentPicView = [[UIImageView alloc]initWithFrame:CGRectMake(xPos, yPos, dimensionSizePicture, dimensionSizePicture)];
-				[currentPicView setImage:[currentClient.petImages objectForKey:petID]];
-				CAShapeLayer *circle = [CAShapeLayer layer];
-				UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, currentPicView.frame.size.width, currentPicView.frame.size.height) cornerRadius:MAX(currentPicView.frame.size.width, currentPicView.frame.size.height)];
-				circle.path = circularPath.CGPath;
-				circle.fillColor = [UIColor whiteColor].CGColor;
-				circle.strokeColor = [UIColor whiteColor].CGColor;
-				circle.lineWidth = 1;
-				
-				currentPicView.layer.mask=circle;
-				
-				int petIDTag = 0;
-				for (NSDictionary *petKey in currentClient.petInfo) {
-					if ([[petKey objectForKey:@"name"]isEqualToString:petID]) {
-						petIDTag = [[petKey objectForKey:@"petid"]intValue];
-					}
-				}
-				
-				UIButton *petImageButton = [UIButton buttonWithType:UIButtonTypeCustom];
-				petImageButton.frame = CGRectMake(xPos, yPos, dimensionSize, dimensionSize*2);
-				[petImageButton setTitleColor:[PharmaStyle colorAppWhite] forState:UIControlStateNormal];
-				petImageButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:16];
-				[petImageButton setTitle:petID forState:UIControlStateNormal];
-				petImageButton.tag = petIDTag;
-				[petImageButton addTarget:self
-								   action:@selector(petImageClick:)
-						 forControlEvents:UIControlEventTouchUpInside];
-				
-				
-				[petPicFrameView addSubview:currentPicView];
-				[petPicFrameView addSubview:petImageButton];
-			});
-			
-			if (numberPets > 3) {
-				xPos +=70;
-			} else {
-				xPos += 70;
-			}
-			petCounter++;
-		} 
-	}
-	
+            int petIDTag = (int)[pet getPetID];
+                    
+            UIButton *petImageButton = [UIButton buttonWithType:UIButtonTypeCustom];
+            petImageButton.frame = CGRectMake(xPos, yPos-labelOffset, dimensionSize, dimensionSize);
+            [petImageButton setTitleColor:[PharmaStyle colorAppWhite] forState:UIControlStateNormal];
+            petImageButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:20];
+            [petImageButton setTitle:[[pet getPetName]uppercaseString] forState:UIControlStateNormal];
+            petImageButton.tag = petIDTag;
+            
+            [petImageButton addTarget:self
+                               action:@selector(petImageClick:)
+                     forControlEvents:UIControlEventTouchUpInside];
+            
+            [petPicFrameView addSubview:petImageButton];
+            [petPicFrameView addSubview:currentPicView];
+        });			
+        if (numberPets > 3) {
+            xPos += 80;
+        } else {
+            xPos += 110;
+        }
+        petCounter++;
+    }	
 	[headerView addSubview:petPicFrameView];
 	
 }
+
 -(void)addControlIcons:(UIView *)headerView {
 	
 	UIButton *keyIcon;
@@ -471,7 +332,6 @@
 	UIButton *noteFromManager;
 	UIButton *basicInfoNote;
 	UIButton *makeCall;
-	UILabel *hasKeyLabel;
 	
 	keyIcon = [UIButton buttonWithType:UIButtonTypeCustom];
 	mapButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -480,37 +340,44 @@
 	basicInfoNote = [UIButton buttonWithType:UIButtonTypeCustom];
 	arriveButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	
-	if (isIphone6P) {
+    mapButton.frame = CGRectMake(headerView.frame.size.width - 60, 0, 32, 32);
+    keyIcon.frame = CGRectMake(headerView.frame.size.width - 60, 40, 20, 32);
+    noteFromManager.frame = CGRectMake(headerView.frame.size.width - 60, headerView.frame.size.height - 180, 32, 32);
+    basicInfoNote.frame = CGRectMake(headerView.frame.size.width - 60, headerView.frame.size.height - 140, 32, 32);
+    arriveButton.frame = CGRectMake(headerView.frame.size.width - 40, headerView.frame.size.height - 40, 32, 32);
+    makeCall.frame = CGRectMake(5, headerView.frame.size.height - 40, 32, 32);
+    
+	/*if (isIphone6P || isXR) {
 		mapButton.frame = CGRectMake(self.view.frame.size.width - 40, 0, 32, 32);
-		keyIcon.frame = CGRectMake(10,_emParallaxHeaderView.frame.size.height - 80,16,32);
-		noteFromManager.frame = CGRectMake(10, _emParallaxHeaderView.frame.size.height - 40, 32, 32);
-		basicInfoNote.frame = CGRectMake(50,_emParallaxHeaderView.frame.size.height - 40,32, 32);
-		makeCall.frame = CGRectMake(90, _emParallaxHeaderView.frame.size.height - 40, 20, 32);
-		arriveButton.frame = CGRectMake(_emParallaxHeaderView.frame.size.width - 40, _emParallaxHeaderView.frame.size.height - 40, 32,32);
+		keyIcon.frame = CGRectMake(10,emParallaxHeader.frame.size.height - 50,12,20);
+		noteFromManager.frame = CGRectMake(10, emParallaxHeader.frame.size.height - 40, 32, 32);
+		basicInfoNote.frame = CGRectMake(50,emParallaxHeader.frame.size.height - 40,32, 32);
+		makeCall.frame = CGRectMake(90, emParallaxHeader.frame.size.height - 40, 20, 32);
+		arriveButton.frame = CGRectMake(emParallaxHeader.frame.size.width - 40, emParallaxHeader.frame.size.height - 40, 32,32);
 	} else if (isIphone6) {
 		mapButton.frame = CGRectMake(self.view.frame.size.width - 40, 0, 32, 32);
-		keyIcon.frame = CGRectMake(10,_emParallaxHeaderView.frame.size.height -80,16,32);
-		noteFromManager.frame = CGRectMake(10, _emParallaxHeaderView.frame.size.height - 40, 32, 32);
-		basicInfoNote.frame = CGRectMake(50,_emParallaxHeaderView.frame.size.height - 40,32, 32);
-		makeCall.frame = CGRectMake(90, _emParallaxHeaderView.frame.size.height - 40, 20, 32);
-		arriveButton.frame = CGRectMake(_emParallaxHeaderView.frame.size.width - 40, _emParallaxHeaderView.frame.size.height - 40, 32,32);
+		keyIcon.frame = CGRectMake(10,emParallaxHeader.frame.size.height -50,12,20);
+		noteFromManager.frame = CGRectMake(10, emParallaxHeader.frame.size.height - 40, 32, 32);
+		basicInfoNote.frame = CGRectMake(50,emParallaxHeader.frame.size.height - 40,32, 32);
+		makeCall.frame = CGRectMake(90, emParallaxHeader.frame.size.height - 40, 20, 32);
+		arriveButton.frame = CGRectMake(emParallaxHeader.frame.size.width - 40, emParallaxHeader.frame.size.height - 40, 32,32);
 	} else if (isIphone5) {
 		mapButton.frame = CGRectMake(self.view.frame.size.width - 40, 0, 32, 32);
-		keyIcon.frame = CGRectMake(10,_emParallaxHeaderView.frame.size.height - 80,16,32);
-		noteFromManager.frame = CGRectMake(10, _emParallaxHeaderView.frame.size.height - 40, 32, 32);
-		basicInfoNote.frame = CGRectMake(50,_emParallaxHeaderView.frame.size.height - 40,32, 32);
-		makeCall.frame = CGRectMake(90, _emParallaxHeaderView.frame.size.height - 40, 20, 32);
-		arriveButton.frame = CGRectMake(_emParallaxHeaderView.frame.size.width - 40, _emParallaxHeaderView.frame.size.height - 40, 32,32);
+		keyIcon.frame = CGRectMake(10,emParallaxHeader.frame.size.height - 50,12,20);
+		noteFromManager.frame = CGRectMake(10, emParallaxHeader.frame.size.height - 40, 32, 32);
+		basicInfoNote.frame = CGRectMake(50,emParallaxHeader.frame.size.height - 40,32, 32);		
+        makeCall.frame = CGRectMake(90, emParallaxHeader.frame.size.height - 40, 20, 32);
+		arriveButton.frame = CGRectMake(emParallaxHeader.frame.size.width - 40, emParallaxHeader.frame.size.height - 40, 32,32);
 	} else if (isIphone4) {
 		
 		mapButton.frame = CGRectMake(self.view.frame.size.width - 40, 0, 32, 32);
-		keyIcon.frame = CGRectMake(10,_emParallaxHeaderView.frame.size.height - 80,16,32);
-		noteFromManager.frame = CGRectMake(10, _emParallaxHeaderView.frame.size.height - 40, 32, 32);
-		makeCall.frame = CGRectMake(90, _emParallaxHeaderView.frame.size.height - 40, 20, 32);
-		basicInfoNote.frame = CGRectMake(50,_emParallaxHeaderView.frame.size.height - 40,32, 32);
-		arriveButton.frame = CGRectMake(_emParallaxHeaderView.frame.size.width - 40, _emParallaxHeaderView.frame.size.height - 40, 32,32);
+		keyIcon.frame = CGRectMake(10,emParallaxHeader.frame.size.height - 50,12,20);
+		noteFromManager.frame = CGRectMake(10, emParallaxHeader.frame.size.height - 40, 32, 32);
+		makeCall.frame = CGRectMake(90, emParallaxHeader.frame.size.height - 40, 20, 32);
+		basicInfoNote.frame = CGRectMake(50,emParallaxHeader.frame.size.height - 40,32, 32);
+		arriveButton.frame = CGRectMake(emParallaxHeader.frame.size.width - 40, emParallaxHeader.frame.size.height - 40, 32,32);
 		
-	}
+	}*/
 	
 	if([currentVisit.status isEqualToString:@"arrived"]){
 		[arriveButton setBackgroundImage:[UIImage imageNamed:@"unarrive-button-pink"]
@@ -537,13 +404,21 @@
 	}
 	
 	[noteFromManager setBackgroundImage:[UIImage imageNamed:@"manager-note-icon-128x128"] forState:UIControlStateNormal];
-	[noteFromManager addTarget:self action:@selector(showNote) forControlEvents:UIControlEventTouchUpInside];
+	[noteFromManager addTarget:self 
+                        action:@selector(showNote) 
+              forControlEvents:UIControlEventTouchUpInside];
 	
-	[basicInfoNote setBackgroundImage:[UIImage imageNamed:@"fileFolder-profile"] forState:UIControlStateNormal];
-	[basicInfoNote addTarget:self action:@selector(showBasicInfo) forControlEvents:UIControlEventTouchUpInside];
+	[basicInfoNote setBackgroundImage:[UIImage imageNamed:@"fileFolder-profile"] 
+                             forState:UIControlStateNormal];
+	[basicInfoNote addTarget:self 
+                      action:@selector(showBasicInfo) 
+            forControlEvents:UIControlEventTouchUpInside];
 	
-	[makeCall setBackgroundImage:[UIImage imageNamed:@"cell-phone-white"] forState:UIControlStateNormal];
-	[makeCall addTarget:self action:@selector(makePhoneCall) forControlEvents:UIControlEventTouchUpInside];
+	[makeCall setBackgroundImage:[UIImage imageNamed:@"cell-phone-white"] 
+                        forState:UIControlStateNormal];
+	[makeCall addTarget:self 
+                 action:@selector(makePhoneCall) 
+       forControlEvents:UIControlEventTouchUpInside];
 	
 	[mapButton setBackgroundImage:[UIImage imageNamed:@"compass-icon"]
 						 forState:UIControlStateNormal];
@@ -552,21 +427,22 @@
 	 forControlEvents:UIControlEventTouchUpInside];
 	
 	NSString *keyIDString = currentVisit.keyID;
-	
+    UILabel *hasKeyLabel;
+    
 	if ([hasKey isEqualToString:@"NEED KEY"]) {
 		if ([keyIDString isEqualToString:@"NO KEY"]) {
-			hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x+20, keyIcon.frame.origin.y+14, 100, 16)];
-			[hasKeyLabel setFont:[UIFont fontWithName:@"Lato-Heavy" size:12]];
+			hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x-20, keyIcon.frame.origin.y+24, 100, 16)];
+			[hasKeyLabel setFont:[UIFont fontWithName:@"Lato-Bold" size:12]];
 		} else {
-			hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x+20, keyIcon.frame.origin.y+14, 100, 16)];
-			[hasKeyLabel setFont:[UIFont fontWithName:@"Lato-Heavy" size:16]];
+			hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x-20, keyIcon.frame.origin.y+24, 100, 16)];
+			[hasKeyLabel setFont:[UIFont fontWithName:@"Lato-Bold" size:16]];
 		}
 		
 		[keyIcon setBackgroundImage:[UIImage imageNamed:@"key-red-4ptstroke"] forState:UIControlStateNormal];
 		[hasKeyLabel setTextColor:[PharmaStyle colorYellow]];
 		[hasKeyLabel setText:keyIDString];
 	} else {
-		hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x+20, keyIcon.frame.origin.y+14, 100, 16)];
+		hasKeyLabel = [[UILabel alloc]initWithFrame:CGRectMake(keyIcon.frame.origin.x+20, keyIcon.frame.origin.y+24, 100, 16)];
 		[hasKeyLabel setFont:[UIFont fontWithName:@"Lato-Bold" size:16]];
 		[keyIcon setBackgroundImage:[UIImage imageNamed:@"key-gold-stroke2pt"] forState:UIControlStateNormal];
 		[hasKeyLabel setTextColor:[PharmaStyle colorYellow]];
@@ -586,38 +462,48 @@
 	[headerView addSubview:arriveButton];	
 	[headerView addSubview:mapButton];
 	
-	/*if((![currentClient.cellphone isEqual:[NSNull null]] && [currentClient.cellphone length] > 0) ||
+	if((![currentClient.cellphone isEqual:[NSNull null]] && [currentClient.cellphone length] > 0) ||
 	   (![currentClient.cellphone2 isEqual:[NSNull null]] && [currentClient.cellphone2 length] > 0) ||
 	   (![currentClient.homePhone isEqual:[NSNull null]] && [currentClient.homePhone length] > 0) ||
-	   (![currentClient.workphone isEqual:[NSNull null]] && [currentClient.workphone length] > 0)){*/
-	//}
+	   (![currentClient.workphone isEqual:[NSNull null]] && [currentClient.workphone length] > 0)){
+        
+        
+        [headerView addSubview:makeCall];
+        
+	}
 
 }
+
 -(void)showMapAndDirections:(id)sender {
 
+    //MKMapView *localMap = myMapView;
+    DetailsMapView* localMap = myMapView;
+
+    __block BOOL localMapOnScreenBool = mapOnScreen;
+    
 	if (mapOnScreen) {
 		[UIView animateWithDuration:0.5 delay:0.1 options:UIViewAnimationOptionLayoutSubviews animations:^{
-			CGRect newFrame = CGRectMake(myMapView.frame.origin.x, 
+			CGRect newFrame = CGRectMake(localMap.frame.origin.x, 
 										 self.view.frame.size.height, 
-										 myMapView.frame.size.width,
-										 myMapView.frame.size.height);
-			myMapView.frame = newFrame;
-			[myMapView layoutIfNeeded];
+										 localMap.frame.size.width,
+										 localMap.frame.size.height);
+			localMap.frame = newFrame;
+			[localMap layoutIfNeeded];
 			
 		} completion:^(BOOL finished) {
 
-			mapOnScreen = NO;	
+            localMapOnScreenBool = NO;
 
 		}];
 		
 	} else {		
 		[UIView animateWithDuration:0.5 delay:0.1 options:UIViewAnimationOptionLayoutSubviews animations:^{
-			CGRect newFrame = CGRectMake(myMapView.frame.origin.x, 
+			CGRect newFrame = CGRectMake(localMap.frame.origin.x, 
 										 self.view.frame.origin.y+100, 
-										 myMapView.frame.size.width,
-										 myMapView.frame.size.height);
-			myMapView.frame = newFrame;
-			[myMapView layoutIfNeeded];
+										 localMap.frame.size.width,
+										 localMap.frame.size.height);
+			localMap.frame = newFrame;
+			[localMap layoutIfNeeded];
 			
 		} completion:^(BOOL finished) {
 			mapOnScreen = YES;
@@ -645,14 +531,8 @@
 
 	[self.view addSubview:myMapView];
 }
+
 -(void)petImageClick:(id)sender {
-    
-    if (isShowingPopup) {
-        [detailView removeFromSuperview];
-        detailView = nil;
-    }
-    
-    isShowingPopup = YES;
 
     UIButton *button = (UIButton*)sender;
     NSString *petIDString = [NSString stringWithFormat:@"%li",(long)button.tag];
@@ -660,7 +540,7 @@
     float widthView = self.view.frame.size.width - 60;
     float dimensionXY = 150;
 
-    if (isIphone6P) {
+    if (isIphone6P || isXR) {
         detailView = [[UIView alloc]initWithFrame:CGRectMake(20, 60, self.view.frame.size.width-40, 590)];
     } else if (isIphone6) {
         detailView = [[UIView alloc]initWithFrame:CGRectMake(20, 60, self.view.frame.size.width-40, 520)];
@@ -680,89 +560,89 @@
     [backgroundImg setImage:backImg];
     
     [detailView addSubview:backgroundImg];
-    for (NSDictionary *petDic in currentClient.petInfo) {
-        if ([[petDic objectForKey:@"petid"]isEqualToString:petIDString]) {
-            UILabel *petLabel = [[UILabel alloc]initWithFrame:CGRectMake(180, 20, 300, 28)];
-            [petLabel setFont:[UIFont fontWithName:@"CompassRoseCPC-Bold" size:24]];
-            [petLabel setText:[petDic objectForKey:@"name"]];
-            [petLabel setTextColor:[PharmaStyle colorYellow]];
-            [detailView addSubview:petLabel];
-            
-            UIImageView *petImageView = [[UIImageView alloc]initWithFrame:CGRectMake(20, 20, dimensionXY, dimensionXY)];
-            [petImageView setImage:[currentClient.petImages objectForKey:[petDic objectForKey:@"name"]]];
-            CAShapeLayer *circle2 = [CAShapeLayer layer];
-            UIBezierPath *circularPath2=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, petImageView.frame.size.width, petImageView.frame.size.height) cornerRadius:MAX(petImageView.frame.size.width, petImageView.frame.size.height)];
-            circle2.path = circularPath2.CGPath;
-            circle2.fillColor = [UIColor whiteColor].CGColor;
-            circle2.strokeColor = [UIColor whiteColor].CGColor;
-            circle2.lineWidth = 1;
-            
-            petImageView.layer.mask = circle2;
-            [detailView addSubview:petImageView];
-            
-            NSString *breedStr = [petDic objectForKey:@"breed"];
-            NSString *colorStr = [petDic objectForKey:@"color"];
-            NSString *birthDaystr = [petDic objectForKey:@"birthday"];
-            NSString *descriptionStr = [petDic objectForKey:@"description"];
-            NSString *notesStr = [petDic objectForKey:@"notes"];
-
-            UILabel *petLabel2 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 50, 120, 40)];
-            petLabel2.numberOfLines = 2;
-            [petLabel2 setFont:[UIFont fontWithName:@"CompassRoseCPC-Bold" size:14]];
-            [petLabel2 setTextColor:[PharmaStyle colorAppWhite]];
-            [detailView addSubview:petLabel2];
-            
-            UILabel *petLabel5 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 90, widthView, 40)];
-            petLabel5.numberOfLines = 2;
-            [petLabel5 setFont:[UIFont fontWithName:@"CompassRoseCPC-Bold" size:fontSize]];
-            [petLabel5 setTextColor:[PharmaStyle colorAppWhite]];
-            [detailView addSubview:petLabel5];
-            
-            UILabel *petLabel6 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 130, widthView, 40)];
-            petLabel6.numberOfLines = 2;
-            [petLabel6 setFont:[UIFont fontWithName:@"CompassRoseCPC-Bold" size:fontSize]];
-            [petLabel6 setTextColor:[PharmaStyle colorAppWhite]];
-            [detailView addSubview:petLabel6];
-            
-            
-            UILabel *petLabel3 = [[UILabel alloc]initWithFrame:CGRectMake(10, 180, widthView, 120)];
-            petLabel3.numberOfLines = 5;
-            [petLabel3 setFont:[UIFont fontWithName:@"CompassRoseCPC-Regular" size:fontSize]];
-            [petLabel3 setTextColor:[PharmaStyle colorAppWhite]];
-            [detailView addSubview:petLabel3];
-            
-            UILabel *petLabel4 = [[UILabel alloc]initWithFrame:CGRectMake(10, 230, widthView, 320)];
-            petLabel4.numberOfLines = 14;
-            [petLabel4 setFont:[UIFont fontWithName:@"CompassRoseCPC-Regular" size:fontSize]];
-            [petLabel4 setTextColor:[PharmaStyle colorAppWhite]];
-            [detailView addSubview:petLabel4];
-            
-            if (![breedStr isEqual:[NSNull null]] && [breedStr length] > 0) {
-                [petLabel2 setText:breedStr];
-                
-            }
-            if (![colorStr isEqual:[NSNull null]] && [colorStr length] > 0) {
-                [petLabel5 setText:colorStr];
-                
-            }
-            if (![birthDaystr isEqual:[NSNull null]] && [birthDaystr length] > 0) {
-                [petLabel6 setText:birthDaystr];
-                
-            }
-            if (![descriptionStr isEqual:[NSNull null]] && [descriptionStr length] > 0) {
-                
-                [petLabel3 setText:descriptionStr];
-            }
-            if (![notesStr isEqual:[NSNull null]] && [notesStr length] > 0) {
-                
-                [petLabel4 setText:notesStr];
-            }
+    
+    PetProfile *currentPet = nil;
+    
+    for (PetProfile *pet in [currentClient getPetInfo]) {
+        if ([[pet getPetID]isEqualToString:petIDString]) {
+            currentPet = pet;
+            break;
         }
     }
     
+    UILabel *petLabel = [[UILabel alloc]initWithFrame:CGRectMake(180, 20, 300, 28)];
+    [petLabel setFont:[UIFont fontWithName:@"Lato-Regular" size:24]];
+    [petLabel setText:[currentPet getPetName]];
+    [petLabel setTextColor:[PharmaStyle colorYellow]];
+    [detailView addSubview:petLabel];
+    
+    UIImageView *petImageView = [[UIImageView alloc]initWithFrame:CGRectMake(20, 20, dimensionXY, dimensionXY)];
+    [petImageView setImage:[currentPet getProfilePhoto]];
+
+    CAShapeLayer *circle2 = [CAShapeLayer layer];
+    UIBezierPath *circularPath2=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, petImageView.frame.size.width, petImageView.frame.size.height) cornerRadius:MAX(petImageView.frame.size.width, petImageView.frame.size.height)];
+    circle2.path = circularPath2.CGPath;
+    circle2.fillColor = [UIColor whiteColor].CGColor;
+    circle2.strokeColor = [UIColor whiteColor].CGColor;
+    circle2.lineWidth = 1;
+    petImageView.layer.mask = circle2;
+    [detailView addSubview:petImageView];
+    
+    NSString *breedStr = [currentPet getPetBreed];
+    NSString *colorStr = [currentPet getPetColor];
+    NSString *birthDaystr = [currentPet getPetBirthday];
+    NSString *descriptionStr = [currentPet getPetDescription];
+    NSString *notesStr = [currentPet getPetNote];
+    
+    UILabel *petLabel2 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 50, 120, 40)];
+    petLabel2.numberOfLines = 2;
+    [petLabel2 setFont:[UIFont fontWithName:@"Lato-Regular" size:14]];
+    [petLabel2 setTextColor:[PharmaStyle colorAppWhite]];
+    [detailView addSubview:petLabel2];
+    
+    UILabel *petLabel5 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 90, widthView, 40)];
+    petLabel5.numberOfLines = 2;
+    [petLabel5 setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+    [petLabel5 setTextColor:[PharmaStyle colorAppWhite]];
+    [detailView addSubview:petLabel5];
+    
+    UILabel *petLabel6 = [[UILabel alloc]initWithFrame:CGRectMake(dimensionXY + 30, 130, widthView, 40)];
+    petLabel6.numberOfLines = 2;
+    [petLabel6 setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+    [petLabel6 setTextColor:[PharmaStyle colorAppWhite]];
+    [detailView addSubview:petLabel6];
+    
+    UILabel *petLabel3 = [[UILabel alloc]initWithFrame:CGRectMake(10, 180, widthView, 120)];
+    petLabel3.numberOfLines = 5;
+    [petLabel3 setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+    [petLabel3 setTextColor:[PharmaStyle colorAppWhite]];
+    [detailView addSubview:petLabel3];
+    
+    UILabel *petLabel4 = [[UILabel alloc]initWithFrame:CGRectMake(10, 230, widthView, 320)];
+    petLabel4.numberOfLines = 14;
+    [petLabel4 setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+    [petLabel4 setTextColor:[PharmaStyle colorAppWhite]];
+    [detailView addSubview:petLabel4];
+    
+    if (![breedStr isEqual:[NSNull null]] && [breedStr length] > 0) {
+        [petLabel2 setText:breedStr];
+    }
+    if (![colorStr isEqual:[NSNull null]] && [colorStr length] > 0) {
+        [petLabel5 setText:colorStr];
+    }
+    if (![birthDaystr isEqual:[NSNull null]] && [birthDaystr length] > 0) {
+        [petLabel6 setText:birthDaystr];
+    }
+    if (![descriptionStr isEqual:[NSNull null]] && [descriptionStr length] > 0) {
+        [petLabel3 setText:descriptionStr];
+    }
+    if (![notesStr isEqual:[NSNull null]] && [notesStr length] > 0) {
+        [petLabel4 setText:notesStr];
+    }
+    
     UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    doneButton.frame = CGRectMake(10, 10, 24, 24);
-    [doneButton setBackgroundImage:[UIImage imageNamed:@"cross"] forState:UIControlStateNormal];
+    doneButton.frame = CGRectMake(10, 30, 32, 32);
+    [doneButton setBackgroundImage:[UIImage imageNamed:@"btn-close-bright"] forState:UIControlStateNormal];
     [doneButton addTarget:self
                    action:@selector(detailPopUpDismiss)
          forControlEvents:UIControlEventTouchUpInside];
@@ -779,11 +659,10 @@
 	
 	isShowingPopup = YES;
 	
-	detailView = [[UIView alloc]initWithFrame:CGRectMake(10, 10, self.view.frame.size.width-20, self.view.frame.size.height - 80)];
+	detailView = [[UIView alloc]initWithFrame:CGRectMake(10, 30, self.view.frame.size.width-20, self.view.frame.size.height - 60)];
 	detailView.backgroundColor = [UIColor clearColor];
 
-	
-	UIImageView *backgroundImg = [[UIImageView alloc]initWithFrame:CGRectMake(0, 0, detailView.frame.size.width, detailView.frame.size.height)];
+    UIImageView *backgroundImg = [[UIImageView alloc]initWithFrame:CGRectMake(0, 0, detailView.frame.size.width, detailView.frame.size.height)];
 	UIImage *backImg = [JzStyleKit imageOfJzCardWithJzCardFrame:CGRectMake(0, 0, detailView.frame.size.width, detailView.frame.size.height) rectangle2:CGRectMake(0, 0, detailView.frame.size.width, detailView.frame.size.height)];
 	[backgroundImg setImage:backImg];
 	[detailView addSubview:backgroundImg];
@@ -822,7 +701,7 @@
 
 	UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	doneButton.frame = CGRectMake(10, 10, 24, 24);
-	[doneButton setBackgroundImage:[UIImage imageNamed:@"cross"] forState:UIControlStateNormal];
+	[doneButton setBackgroundImage:[UIImage imageNamed:@"btn-close-bright"] forState:UIControlStateNormal];
 	[doneButton addTarget:self
 				   action:@selector(detailPopUpDismiss)
 		 forControlEvents:UIControlEventTouchUpInside];
@@ -831,35 +710,32 @@
 
 -(int)calcNumLines:(NSString*)term {
 	
-	int numLines = 1;
-
-	if ([term length] > 48) {
-		numLines = (int)[term length] / 1.2;
-	} else if ([term length] > 28 && [term length] < 48) {
-		numLines = 2;
-	}
+    int numLines;
+    
+    int termLen = (int)[term length];
+    NSArray *lineArray = [term componentsSeparatedByString:@"\n"];
+    int numLineCarriageReturn =(int) [lineArray count];
+    numLines = termLen / numCharAcross;
+    numLines = numLines + numLineCarriageReturn;
+    if (numLines < 2) {
+        numLines = 1;
+    }
+    //NSLog(@"Number of lines: %i", numLines);
 	return numLines;
 	
 }
+
 -(int)calcHeight:(NSString*)term {
 	
-	int termLen = [term length];
+	int termLen = (int)[term length];
 	NSArray *lineArray = [term componentsSeparatedByString:@"\n"];
 	int numLineCarriageReturn =(int) [lineArray count];
-	int height = (int)[term length]/2.2;
-	
-	
-	if (termLen < 75 && termLen> 43) {
-		height = 45;
-	} else if (termLen> 28 && termLen< 44) {
-		height = 26;
-	} else if (termLen < 29) {
-		height = 20;
-	} else if (termLen < 104 && termLen >75 ) {
-		height = 90;
-	}
-	height = height + (numLineCarriageReturn * 24);
-	//NSLog(@"TERM: %@ -- > Term length: %lu, num carriage return: %i, height: %i", term, (unsigned long)[term length], numLineCarriageReturn, height);
+    int height = (termLen / numCharAcross) * fontSizeGlobal;
+    if (height < 40) {
+        height = 36;
+    }
+    height = height + (numLineCarriageReturn * fontSizeGlobal);
+    //NSLog(@"Height: %i", height);
 
 	return height;	
 }
@@ -919,43 +795,38 @@
 	
 	UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	doneButton.frame = CGRectMake(10, 10, 24, 24);
-	[doneButton setBackgroundImage:[UIImage imageNamed:@"cross"] forState:UIControlStateNormal];
+	[doneButton setBackgroundImage:[UIImage imageNamed:@"btn-close-bright"] forState:UIControlStateNormal];
 	[doneButton addTarget:self
 				   action:@selector(detailPopUpDismiss)
 		 forControlEvents:UIControlEventTouchUpInside];
 	[detailView addSubview:doneButton];
 }
--(void)backButtonClicked:(id)sender {
-    [_emParallaxHeaderView removeFromSuperview];
-    [_emTV removeFromParentViewController];
 
-    _emTV.tableView.delegate = nil;
-    _emTV = nil;
+-(void)backButtonClicked:(id)sender {
     
-    _emParallaxHeaderView = nil;
+    [emParallaxHeader removeFromSuperview];
+    [emTV removeFromParentViewController];
+    emTV.tableView.delegate = nil;
+    emTV = nil;
+    emParallaxHeader = nil;
     
     currentVisit = nil;
-
     [detailView removeFromSuperview];
     detailView = nil;
-    
     [flagView removeFromSuperview];
     flagView = nil;
-    
     [arriveButton removeFromSuperview];
     arriveButton = nil;
-    
     [dataForSections removeAllObjects];
     [sections removeAllObjects];
-    
     [backButton removeFromSuperview];
     backButton = nil;
 	[self.view removeFromSuperview];
+    
 }
-
 -(void) addClientFlags:(UIView*)flagViewForFlag
             withHeader:(UIView*)headerView {
-    int x = 110;
+    int x = 150;
     int y = headerView.frame.size.height - 40;
     int numRows = 0;
 	UIButton *flagDetailButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -966,7 +837,7 @@
 	[headerView addSubview:flagDetailButton];
     VisitsAndTracking *sharedVisits = [VisitsAndTracking sharedInstance];
 
-	for (NSDictionary *flagDicClient in currentClient.clientFlagsArray) {
+	for (NSDictionary *flagDicClient in [currentClient getFlags]) {
 		NSString *comparingFlagID = [flagDicClient objectForKey:@"flagid"];
 
         for (NSDictionary *flagTableItem in sharedVisits.flagTable) {
@@ -1005,6 +876,7 @@
     int clientIDTag = [currentClient.clientID intValue];
 	flagDetailButton.tag = clientIDTag;
 }
+
 
 -(NSMutableArray*)orderTermsForDetails:(NSMutableArray*)accordionSection
                                forType:(NSString*)type {
@@ -1108,11 +980,11 @@
             for(int i = 0; i < numPets; i++) {
                 
                 NSDictionary *petInfo = [accordionSection objectAtIndex:i];
-                NSString *petID = [petInfo objectForKey:@"petid"];
-                NSMutableDictionary *dicForID = [[NSMutableDictionary alloc]init];
-                [dicForID setObject:[petInfo objectForKey:@"name"] forKey:@"petname"];
-                [dicForID setObject:petID forKey:@"Pet ID"];
-                [orderedTerms addObject:dicForID];
+                //NSString *petID = [petInfo objectForKey:@"petid"];
+                //NSMutableDictionary *dicForID = [[NSMutableDictionary alloc]init];
+                //[dicForID setObject:[petInfo objectForKey:@"name"] forKey:@"petname"];
+                //[dicForID setObject:petID forKey:@"Pet ID"];
+                //[orderedTerms addObject:dicForID];
 
 				if(![[petInfo objectForKey:@"name"]isEqual:[NSNull null]] && [[petInfo objectForKey:@"name"]length] > 0){
 					[orderedTerms addObject:[petInfo objectForKey:@"name"]];
@@ -1184,7 +1056,7 @@
 							if ([fieldEval isKindOfClass:[NSDictionary class]]) {
 								NSMutableDictionary *docAttach = (NSMutableDictionary*)[petCustomDic objectForKey:@"value"];
 								[docAttach setObject:@"docAttach" forKey:@"type"];
-								[docAttach setObject:petID forKey:@"petid"];
+								//[docAttach setObject:petID forKey:@"petid"];
 								[docArray addObject:docAttach];
 							} else if ([fieldEval isKindOfClass:[NSString class]]) {
 								NSString *fieldVal = [petCustomDic objectForKey:@"value"];
@@ -1206,7 +1078,8 @@
     return orderedTerms;
 }
 
--(UIView*)createCustomClientSections:(NSMutableArray*)accordionSection atTableRow:(NSIndexPath*)row {
+-(UIView*)createCustomClientSections:(NSMutableArray*)accordionSection
+                          atTableRow:(NSIndexPath*)row {
     int y = 20;
     int x = 20;
     int ySection = y;
@@ -1218,119 +1091,97 @@
     NSMutableArray *labelArray = [[NSMutableArray alloc]init];
     NSMutableArray *iconArray = [[NSMutableArray alloc]init];
 
-    for(int i = 0; i < numFields; i++) {
-        NSDictionary *customField = [accordionSection objectAtIndex:i];
-		if ([[customField objectForKey:@"type"] isEqualToString:@"docAttach"]) {
-			NSString *fieldLabel = [customField objectForKey:@"fieldlabel"];
-			NSString *label = [customField objectForKey:@"label"];
-			//NSString *url = [customField objectForKey:@"url"];
-			NSString *docAttachIndex = [customField objectForKey:@"errataIndex"];
-			int docIndex = (int)[docAttachIndex integerValue];
-				
-			UIButton *docAttachButton = [UIButton buttonWithType:UIButtonTypeCustom];
-			docAttachButton.frame = CGRectMake(5, y, 32, 32);
-			[docAttachButton setBackgroundImage:[UIImage imageNamed:@"file-folder-line"]
-									   forState:UIControlStateNormal];
-			[docAttachButton addTarget:self 
-								action:@selector(tapDocView:) 
-					  forControlEvents:UIControlEventTouchUpInside];
-
-			docAttachButton.tag = docIndex;
-			[iconArray addObject:docAttachButton];
-			
-			UILabel *docLabel = [[UILabel alloc]initWithFrame:CGRectMake(x + 40, y, width-40, 40)];
-			[docLabel setFont:[UIFont fontWithName:@"Lato-Bold" size:16]];
-			[docLabel setNumberOfLines:2];
-			[docLabel setTextColor:[UIColor blackColor]];
-			[docLabel setText:fieldLabel];
-			[labelArray addObject:docLabel];
-			
-			y = y + 40;
-			
-			UILabel *docLabel2 = [[UILabel alloc]initWithFrame:CGRectMake(x + 40, y, width-40, 40)];
-			[docLabel2 setFont:[UIFont fontWithName:@"Lato-Bold" size:16]];
-			[docLabel2 setNumberOfLines:2];
-			[docLabel2 setTextColor:[UIColor blackColor]];
-			[docLabel2 setText:label];
-			[labelArray addObject:docLabel2];
-			
-			y = y + 40;
-			
-			
-		} else {
-			
-			NSString *label = [customField objectForKey:@"label"];
-			NSString *value = [customField objectForKey:@"value"];
-			
-			int sectionHeight = [self calcHeight:label]+20;
-			int numLines = [self calcNumLines:label];
-			
-			int sectionHeight2 = [self calcHeight:value]+20;
-			int numLines2 = [self calcNumLines:value];
-						
-			UILabel *labelInfo = [self createTermLabel:label
-												  xPos:x
-												  yPos:y
-												 width:width
-												height:sectionHeight
-											  numLines:numLines withLabelType:@"custom"];
-			
-			y += sectionHeight;
-			
-			UILabel *valInfo = [self createTermLabel:value
-												xPos:x
-												yPos:y
-											   width:width-x
-											  height:sectionHeight2
-											numLines:numLines2 withLabelType:@"value"];
-			
-			ySection += yOffset;
-			y = y + sectionHeight2;
-			
-			UIImageView *divider = [[UIImageView alloc]initWithFrame:CGRectMake(x-10, y, width-20, 1)];
-			[divider setImage:[UIImage imageNamed:@"white-line-1px"]];
-			[iconArray addObject:divider];
-			[labelArray addObject:labelInfo];
-			[labelArray addObject:valInfo];
-		}
-    }
+    NSArray *customClientFieldsArray =[currentClient getCustomFields];
+    NSArray *clientErrataData  = [currentClient getErrataDocs];
     
-    yOffset = y;
-
-    y +=50;
-    x = 40;
+    numFields = (int)[customClientFieldsArray count];
     
-    for(NSDictionary *checkDic in currentClient.customClientCheckBox) {
-        ySection += y;
-		int numLines = [self calcNumLines:[checkDic objectForKey:@"label"]];
-		int heightLabel = [self calcHeight:[checkDic objectForKey:@"label"]];
-        UIImageView *iconFor = [[UIImageView alloc]initWithFrame:CGRectMake(x-30, y+5, 20, 20)];
-        UILabel *titleLbl2 = [[UILabel alloc ]initWithFrame:CGRectMake(x, y, self.view.bounds.size.width - 80, heightLabel)];
-        
-        y += heightLabel;
-        
-        [titleLbl2 setFont:[UIFont fontWithName:@"Lato-Regular" size:18]];
-        [titleLbl2 setText:[checkDic objectForKey:@"label"]];
-        titleLbl2.numberOfLines = numLines;
-        [labelArray addObject:titleLbl2];
-        
-        if ([[checkDic objectForKey:@"value"] isEqualToString:@"0"]) {
-            [iconFor setImage:[UIImage imageNamed:@"x-mark-red"]];
-        } else if ([[checkDic objectForKey:@"value"] isEqualToString:@"1"]) {
-            [iconFor setImage:[UIImage imageNamed:@"check-mark-green"]];
+    if ([clientErrataData count] > 0) {
+        for (NSDictionary *errataDic in clientErrataData) {
+            NSString *label = [errataDic objectForKey:@"label"];
+            NSString *value = [errataDic objectForKey:@"docname"];
+            NSString *mimeType = [errataDic objectForKey:@"mimetype"];
+            NSString *urlLink  = [errataDic objectForKey:@"url"];
+            
+            NSLog(@"mime type: %@, url link: %@", mimeType, urlLink);
+            
+            int sectionHeight = [self calcHeight:label];
+            int numLines = [self calcNumLines:label];
+            int  sectionHeight2 = [self calcHeight:value];
+            int numLines2 = [self calcNumLines:value];
+            
+            UILabel *labelInfo = [self createTermLabel:label
+                                                      xPos:x
+                                                      yPos:y
+                                                     width:width
+                                                    height:sectionHeight
+                                                  numLines:numLines withLabelType:@"custom"];
+                
+            y += sectionHeight;
+            
+            UILabel *valInfo = [self createTermLabel:value
+                                                    xPos:x
+                                                    yPos:y
+                                                   width:width-x
+                                                  height:sectionHeight2
+                                                numLines:numLines2 withLabelType:@"value"];
+                
+            ySection += yOffset;
+            y = y + sectionHeight2;
+
+            UIImageView *errataDiv = [[UIImageView alloc]initWithFrame:CGRectMake(x-10, y, width-20, 1)];
+            [errataDiv setImage:[UIImage imageNamed:@"white-line-1px"]];
+            [iconArray addObject:errataDiv];
+            [iconArray addObject:labelInfo];
+            [iconArray addObject:valInfo];
+            
+            yOffset = y;
+            y += 12;
+            
         }
-        
-        [iconArray addObject:iconFor];
-        y +=10;
-        UIImageView *divider = [[UIImageView alloc]initWithFrame:CGRectMake(x-10, y, width-20, 1)];
-        [divider setImage:[UIImage imageNamed:@"white-line-1px"]];
-        [iconArray addObject:divider];
-        y += 10;
     }
     
-    
+    for (NSDictionary *customField in customClientFieldsArray) {
+        NSString *label = [customField objectForKey:@"label"];
+        NSString *value = [customField objectForKey:@"value"];
+        if (![value isEqual:[NSNull null]]) {
+            int sectionHeight = [self calcHeight:label]+20;
+            int numLines = [self calcNumLines:label];
+            int sectionHeight2 = [self calcHeight:value]+20;
+            int numLines2 = [self calcNumLines:value];
+            UILabel *labelInfo = [self createTermLabel:label
+                                                      xPos:x
+                                                      yPos:y
+                                                     width:width
+                                                    height:sectionHeight
+                                                  numLines:numLines withLabelType:@"custom"];
+                
+                
+            y += sectionHeight;
+            UILabel *valInfo = [self createTermLabel:value
+                                                    xPos:x
+                                                    yPos:y
+                                                   width:width-x
+                                                  height:sectionHeight2
+                                                numLines:numLines2 withLabelType:@"value"];
+                
+                
+            ySection += yOffset;
+            y = y + sectionHeight2;
+            
+            UIImageView *divider = [[UIImageView alloc]initWithFrame:CGRectMake(x-10, y, width-20, 1)];
+            [divider setImage:[UIImage imageNamed:@"white-line-1px"]];
+            [iconArray addObject:divider];
+            [labelArray addObject:labelInfo];
+            [labelArray addObject:valInfo];
+            
+            yOffset = y;
+            y += 12;
+            
+        }
+    }
     UIView *cellView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, y)];
-    _cellHeight = cellView.frame.size.height;
+    cellHeight = cellView.frame.size.height;
     cellView.backgroundColor = [PharmaStyle colorBlueLight];
 
     for(UILabel *label in labelArray) {
@@ -1342,43 +1193,163 @@
     return cellView;
 }
 
--(UIView*)createCellViewWithSubsections:(NSMutableArray*)accordionSection 
-							 atTableRow:(NSIndexPath*)row {
-    
+-(UIView*) createPetProfileCellView:(NSMutableArray*)accordionSection atTableRow:(NSIndexPath*)row  {
+
     int y = 5;
     int x = 20;
 	int width = self.view.frame.size.width - 60;
 	int petImgSize = 120;
     int ySection = y;
-    int yOffset = 40;
+    int yOffset = 32;
 	int basicInfoSectionY = 0;
 
-    
-    NSMutableArray *petInfoSort = [self orderTermsForDetails:accordionSection forType:@"petInfo"];
     NSMutableArray *labelArray = [[NSMutableArray alloc]init];
     NSMutableArray *iconArray = [[NSMutableArray alloc]init];
-
-	int basicFieldCounter = 0;
+    
+    int numberPets = (int)[accordionSection count];
+    
+    for (int i = 0; i < numberPets; i++) {
+        PetProfile *pet = [accordionSection objectAtIndex:i];
+        int sectionHeight = [self calcHeight:[pet getPetName]];
+        int numLines2 = [self calcNumLines:[pet getPetName]];
+        
+        UIImageView *petImageFrame = [[UIImageView alloc]initWithFrame:CGRectMake(0,y, petImgSize,petImgSize)];
+        [petImageFrame setImage:[pet getProfilePhoto]];
+        [iconArray addObject:petImageFrame];
+        CAShapeLayer *circle = [CAShapeLayer layer];
+        UIBezierPath *circularPath=[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, petImageFrame.frame.size.width, petImageFrame.frame.size.height) cornerRadius:MAX(petImageFrame.frame.size.width, petImageFrame.frame.size.height)];
+        circle.path = circularPath.CGPath;
+        circle.fillColor = [UIColor whiteColor].CGColor;
+        circle.strokeColor = [UIColor whiteColor].CGColor;
+        circle.lineWidth = 1;
+        petImageFrame.layer.mask = circle;
+        
+        UILabel *nameLabel = [self createTermLabel:[pet getPetName] 
+                                              xPos:x + petImgSize
+                                              yPos:y 
+                                             width:width
+                                            height:sectionHeight 
+                                          numLines:numLines2 
+                                     withLabelType:@"petBasic"];
+        
+        ySection += yOffset;
+        y = y + sectionHeight;
+        basicInfoSectionY = basicInfoSectionY + sectionHeight;
+        [labelArray addObject:nameLabel];     
+        
+        UILabel *breedLabel = [self createTermLabel:[pet getPetBreed] 
+                                              xPos:x + petImgSize
+                                              yPos:y 
+                                             width:width
+                                            height:sectionHeight 
+                                          numLines:numLines2 
+                                     withLabelType:@"petBasic"];
+        
+        ySection += yOffset;
+        y = y + sectionHeight;
+        basicInfoSectionY = basicInfoSectionY + sectionHeight;
+        [labelArray addObject:breedLabel];   
+        
+        UILabel *petTypeLabel = [self createTermLabel:[pet getPetType] 
+                                              xPos:x + petImgSize
+                                              yPos:y 
+                                             width:width
+                                            height:sectionHeight 
+                                          numLines:numLines2 
+                                     withLabelType:@"petBasic"];
+        
+        ySection += yOffset;
+        y = y + sectionHeight;
+        basicInfoSectionY = basicInfoSectionY + sectionHeight;
+        [labelArray addObject:petTypeLabel];         
+        
+        UILabel *petDescriptionLabel = [self createTermLabel:[pet getPetDescription] 
+                                              xPos:x + petImgSize
+                                              yPos:y 
+                                             width:width
+                                            height:sectionHeight 
+                                          numLines:numLines2 
+                                     withLabelType:@"petBasic"];
+        
+        ySection += yOffset;
+        y = y + sectionHeight;
+        basicInfoSectionY = basicInfoSectionY + sectionHeight;
+        [labelArray addObject:petDescriptionLabel];        
+        
+        
+        UILabel *petNotesLabel = [self createTermLabel:[pet getPetDescription] 
+                                              xPos:x + petImgSize
+                                              yPos:y 
+                                             width:width
+                                            height:sectionHeight 
+                                          numLines:numLines2 
+                                     withLabelType:@"petBasic"];
+        
+        ySection += yOffset;
+        y = y + sectionHeight;
+        basicInfoSectionY = basicInfoSectionY + sectionHeight;
+        [labelArray addObject:petNotesLabel];        
+        
+        NSArray *customPetFields = [pet getCustomPetFields];
+        
+        if (y < petImgSize) {
+            
+            y = y + petImgSize;
+            
+        }
+        
+        /*UIImageView *divider = [[UIImageView alloc]initWithFrame:CGRectMake(x-10, y, width, 1)];
+        [divider setImage:[UIImage imageNamed:@"white-line-1px"]];
+        [labelArray addObject:divider];
+        */
+        
+        for (NSDictionary *customDic in customPetFields) {
+            UILabel *customLabel = [self createTermLabel:[customDic objectForKey:@"label"]
+                                                  xPos:x 
+                                                  yPos:y 
+                                                 width:width
+                                                height:sectionHeight 
+                                              numLines:numLines2 
+                                         withLabelType:@"petBasic"];
+            
+            y = y + sectionHeight;
+            [labelArray addObject:customLabel];
+            
+            UILabel *customVal = [self createTermLabel:[customDic objectForKey:@"value"]
+                                                  xPos:x 
+                                                  yPos:y 
+                                                 width:width
+                                                height:sectionHeight 
+                                              numLines:numLines2 
+                                         withLabelType:@"petBasic"];
+            
+            y = y + sectionHeight;
+            [labelArray addObject:customVal];
+            
+        }        
+        
+    }
 	
-    for(id petField in petInfoSort) {
+    /*for(id petField in petInfoSort) {
         if([petField isKindOfClass:[NSString class]]) {
             int sectionHeight = [self calcHeight:petField];
-			int numLines2 = [self calcNumLines:petField];
-			if  (basicFieldCounter / 5 == 1 || basicFieldCounter / 6 == 1 ) {
-				UILabel *valInfo = [self createTermLabel:petField
-													xPos:x
-													yPos:y
-												   width:width
-												  height:sectionHeight
-												numLines:numLines2 
-										   withLabelType:@"petBasic"];
-				ySection += yOffset;
-				y = y + sectionHeight;
-				basicInfoSectionY = basicInfoSectionY + sectionHeight;
-				[labelArray addObject:valInfo];
-				
-			} else {
-				
+            int numLines2 = [self calcNumLines:petField];
+            if  (basicFieldCounter / 5 == 1 || basicFieldCounter / 6 == 1 ) {
+
+                UILabel *valInfo = [self createTermLabel:petField
+                                                    xPos:x
+                                                    yPos:y
+                                                   width:width
+                                                  height:sectionHeight
+                                                numLines:numLines2 
+                                           withLabelType:@"petBasic"];
+                ySection += yOffset;
+                y = y + sectionHeight;
+                basicInfoSectionY = basicInfoSectionY + sectionHeight;
+                [labelArray addObject:valInfo];            
+            
+            }
+          else {
 				UILabel *valInfo = [self createTermLabel:petField
 													xPos:petImgSize + 15
 													yPos:y
@@ -1390,13 +1361,13 @@
 				y = y + sectionHeight;
 				basicInfoSectionY = basicInfoSectionY + sectionHeight;
 				[labelArray addObject:valInfo];
-			}
-			basicFieldCounter = basicFieldCounter  + 1;
-        } 
-		else if ([petField isKindOfClass:[NSDictionary class]]) {
+          }
+          basicFieldCounter = basicFieldCounter  + 1;
+        }		
+        else if ([petField isKindOfClass:[NSDictionary class]]) {
             NSDictionary *petDicItem = (NSDictionary*) petField;            
             if([petDicItem objectForKey:@"Pet ID"] != NULL) {
-                UIImage *petImage = [currentClient.petImages objectForKey:[petDicItem objectForKey:@"petname"]];
+                UIImage *petImage = [[currentClient getPetImages] objectForKey:[petDicItem objectForKey:@"petname"]];
                 UIImageView *petImageFrame = [[UIImageView alloc]initWithFrame:CGRectMake(0,y, petImgSize,petImgSize)];
                 [petImageFrame setImage:petImage];
                 [iconArray addObject:petImageFrame];
@@ -1408,7 +1379,8 @@
                 circle.lineWidth = 1;
                 petImageFrame.layer.mask = circle;
 				basicFieldCounter = 0;
-            } else {
+            } 
+            else {
                 if(![[petDicItem objectForKey:@"label"] isEqual:[NSNull null]] &&
                    ![[petDicItem objectForKey:@"value"] isEqual:[NSNull null]]) {
 					if(basicInfoSectionY < 161){
@@ -1509,10 +1481,10 @@
             [divider setImage:[UIImage imageNamed:@"white-line-1px"]];
             [iconArray addObject:divider];
         }
-    }
+    }*/
 
 	UIView *cellView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, y)];
-    _cellHeight = cellView.frame.size.height;
+    cellHeight = cellView.frame.size.height;
     cellView.backgroundColor = [PharmaStyle colorBlueLight];
     
     for(UIImageView *icon in iconArray) {
@@ -1540,7 +1512,8 @@
 		for (NSString *clientField in accordionSection) {
 			int sectionHeight = [self calcHeight:clientField];
 			int numberLinesClientField = [self calcNumLines:clientField];
-			sectionHeight += 20;
+			sectionHeight += 8; // orig val = 20
+            //NSLog(@"client label field: %@", clientField);
 			UILabel *valInfo = [self createTermLabel:clientField
 												xPos:x
 												yPos:y
@@ -1560,7 +1533,7 @@
 	}
     
     UIView *cellView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, y)];
-    _cellHeight = cellView.frame.size.height;
+    cellHeight = cellView.frame.size.height;
     cellView.backgroundColor = [PharmaStyle colorBlueLight];
 
     
@@ -1583,35 +1556,25 @@
                    numLines:(int)numLines
               withLabelType:(NSString*)labelType {
     
-	NSLog(@"Client field: %@", termText);
+	//NSLog(@"Client field: %@", termText);
     UILabel *labelForKey = [[UILabel alloc]initWithFrame:CGRectMake(x, y, width, height)];
     labelForKey.numberOfLines = numLines;
-    
-    int fontSize = 20;
-    if(isIphone6P) {
-        fontSize = 18;
-    } else if (isIphone6) {
-        fontSize = 16;
-    } else if (isIphone5) {
-        fontSize = 14;
-    } else if (isIphone4) {
-        fontSize = 16;
-    }
+
     
     if([labelType isEqualToString:@"label"]) {
-        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSizeGlobal]];
         [labelForKey setTextColor:[UIColor blackColor]];
     } else if ([labelType isEqualToString:@"value"]) {
-        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize-2]];
+        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSizeGlobal]];
         [labelForKey setTextColor:[UIColor blackColor]];
     } else if ([labelType isEqualToString:@"custom"]) {
-        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize-2]];
+        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSizeGlobal]];
         [labelForKey setTextColor:[PharmaStyle colorRedBright]];
     } else if ([labelType isEqualToString:@"listItem"]) {
-        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize-2]];
+        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSizeGlobal]];
         [labelForKey setTextColor:[UIColor blackColor]];
     } else if ([labelType isEqualToString:@"petBasic"]) {
-        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSize]];
+        [labelForKey setFont:[UIFont fontWithName:@"Lato-Regular" size:fontSizeGlobal]];
         [labelForKey setTextColor:[UIColor blackColor]];
     }
     [labelForKey setText:termText];
@@ -1619,37 +1582,57 @@
 }
 
 -(void)addDataSections {
+    NSLog(@"adding data sections");
 	EMAccordionSection *petInfo = [[EMAccordionSection alloc]init];
 	[petInfo setBackgroundColor:[PharmaStyle colorBlue]];
 	[petInfo setTitle:@"PETS"];
 	[petInfo setTitleColor:[UIColor blackColor]];
 	[petInfo setTitleFont:[UIFont fontWithName:@"Lato-Bold" size:20]];
 	
-	if(currentClient.petsDataRaw != NULL && [currentClient.petsDataRaw count] > 0){
-		petInfo.items = currentClient.petInfo;
-		[_emTV addAccordionSection:petInfo initiallyOpened:YES];
-		[dataForSections addObject:currentClient.petInfo];
+	if([currentClient getPetInfo] != NULL && [[currentClient getPetInfo]count] > 0){
+		petInfo.items = [currentClient getPetInfo];
+		[emTV addAccordionSection:petInfo initiallyOpened:YES];
+		[dataForSections addObject:[currentClient getPetInfo]];        
+
 	} else {
-		petInfo.items = currentClient.petInfo;
-		[_emTV addAccordionSection:petInfo initiallyOpened:YES];
-		[dataForSections addObject:currentClient.petInfo];
+		petInfo.items = [currentClient getPetInfo];
+		[emTV addAccordionSection:petInfo initiallyOpened:YES];
+		[dataForSections addObject:[currentClient getPetInfo]];
 	}
 
-	[_emTV addAccordionSection:currentClient.basicClientInfo initiallyOpened:YES];
-	[_emTV addAccordionSection:currentClient.altClientInfo initiallyOpened:YES];
-	[_emTV addAccordionSection:currentClient.vetInfo initiallyOpened:YES];
-	[_emTV addAccordionSection:currentClient.alarmInfoAccordion initiallyOpened:YES];
-	[_emTV addAccordionSection:currentClient.locationSupplies initiallyOpened:YES];
+    EMAccordionSection *clientBasicInfo = [currentClient getAccordionSection:@"basic"];
+	[emTV addAccordionSection:clientBasicInfo initiallyOpened:YES];
+    [dataForSections addObject:clientBasicInfo.items];
 
-	[dataForSections addObject:currentClient.basicClientInfo.items];
-	[dataForSections addObject:currentClient.altClientInfo.items];
-	[dataForSections addObject:currentClient.vetInfo.items];
-	[dataForSections addObject:currentClient.alarmInfoAccordion.items];
-	[dataForSections addObject:currentClient.locationSupplies.items];
-	
-	if(currentClient.customClientAccordionFields != nil) {
-		[_emTV addAccordionSection:currentClient.customClientAccordionFields initiallyOpened:YES];
-		[dataForSections addObject:currentClient.customClientAccordionFields.items];
+    EMAccordionSection *altInfo = [currentClient getAccordionSection:@"alt"];
+    if (altInfo != nil) {
+        [emTV addAccordionSection:altInfo initiallyOpened:YES];
+        [dataForSections addObject:altInfo.items];
+    }
+    EMAccordionSection *vetInfo = [currentClient getAccordionSection:@"vet"];
+
+    if (vetInfo != nil) {
+        [emTV addAccordionSection:vetInfo initiallyOpened:YES];
+        [dataForSections addObject:vetInfo.items];
+    }    
+    
+    EMAccordionSection *alarmInfo = [currentClient getAccordionSection:@"alarm"];
+    if (alarmInfo != nil) {
+        [emTV addAccordionSection:alarmInfo initiallyOpened:YES];
+        [dataForSections addObject:alarmInfo.items];
+    }
+
+    EMAccordionSection *locationSupplies = [currentClient getAccordionSection:@"location"];
+	[emTV addAccordionSection:locationSupplies initiallyOpened:YES];
+	[dataForSections addObject:locationSupplies.items];
+    
+    EMAccordionSection *customClientAccordionFields = [[EMAccordionSection alloc]init];
+    [customClientAccordionFields setBackgroundColor:[PharmaStyle colorBlue]];
+    [customClientAccordionFields setTitleFont:[UIFont fontWithName:@"Lato-Bold" size:22.0]];
+    [customClientAccordionFields setTitleColor:[PharmaStyle  colorRedShadow70]];
+    [customClientAccordionFields setTitle:@"CUSTOM"];    
+	if(customClientAccordionFields != nil) {
+		[emTV addAccordionSection:customClientAccordionFields initiallyOpened:YES];
 	}
 }
 
@@ -1665,6 +1648,7 @@
 	}
 	else if (indexPath.section == 2){
 		onWhichSection = 2;
+        NSLog(@"On which section %i: %@",onWhichSection, [dataForSections objectAtIndex:2]);
 		return [dataForSections objectAtIndex:2];
 	}
 	else if (indexPath.section == 3){
@@ -1692,7 +1676,9 @@
     NSMutableArray *items = [self dataFromIndexPath:indexPath];
 
     if(onWhichSection == 0) {
-		UIView *cellViewTestx = [self createCellViewWithSubsections:currentClient.petsDataRaw atTableRow:indexPath];
+        UIView *cellViewTestx = [self createPetProfileCellView:[currentClient getPetInfo] atTableRow:indexPath];
+        
+		//UIView *cellViewTestx = [self createCellViewWithSubsections:[currentClient getPetInfo] atTableRow:indexPath];
         cell.frame = cellViewTestx.frame;
         [cell.contentView addSubview:cellViewTestx];
         return cell;
@@ -1730,46 +1716,45 @@
 		
 	return cell;
 }
-
 - (void) tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 }
 - (CGFloat) tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return _cellHeight;
+    return cellHeight;
 }
-
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section { 
 	UIView *newView = [[UIView alloc]initWithFrame:CGRectMake(0, 0, self.view.frame.size.width, 0)];
 	return newView;
 }
-
 - (CGFloat) tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
 	return kTableHeaderHeight;
 }
-
 -(void)markUnarrive {
 	
 	VisitsAndTracking *sharedVisits = [VisitsAndTracking sharedInstance];
+    VisitDetails *localCurrentVisit = currentVisit;
 	UIAlertController * alert=   [UIAlertController
 								  alertControllerWithTitle:@"CHANGE VISIT STATUS"
 								  message:@"MARK THIS VISIT UNARRIVE?"
 								  preferredStyle:UIAlertControllerStyleAlert];
+    UIButton *arriveButtonTmp = arriveButton;
+    NSString *visitTmpApptID  = currentVisit.appointmentid;
 	UIAlertAction* ok = [UIAlertAction
 						 actionWithTitle:@"OK"
 						 style:UIAlertActionStyleDefault
 						 handler:^(UIAlertAction * action)
 						 {
 							 [alert dismissViewControllerAnimated:YES completion:nil];
-							 currentVisit.status = @"future";
-							 currentVisit.arrived = @"NO";
-							 currentVisit.dateTimeMarkArrive = @"";
-							 currentVisit.coordinateLatitudeMarkArrive = @"0.0";
-							 currentVisit.coordinateLongitudeMarkArrive = @"0.0";
+							 localCurrentVisit.status = @"future";
+							 localCurrentVisit.arrived = @"NO";
+							 localCurrentVisit.dateTimeMarkArrive = @"";
+							 localCurrentVisit.coordinateLatitudeMarkArrive = @"0.0";
+							 localCurrentVisit.coordinateLongitudeMarkArrive = @"0.0";
 							 sharedVisits.onSequence = @"000";
 							 sharedVisits.onWhichVisitID = @"000";
 							 
-							 [arriveButton setBackgroundImage:[UIImage imageNamed:@"arrive-pink-button"]
+							 [arriveButtonTmp setBackgroundImage:[UIImage imageNamed:@"arrive-pink-button"]
 													 forState:UIControlStateNormal];
-							 [sharedVisits markVisitUnarrive:currentVisit.appointmentid];
+							 [sharedVisits markVisitUnarrive:visitTmpApptID];
 						 }];
 	[alert addAction:ok];
 	
@@ -1790,19 +1775,22 @@
 								  alertControllerWithTitle:@"CHANGE VISIT STATUS"
 								  message:@"MARK ARRIVE?"
 								  preferredStyle:UIAlertControllerStyleAlert];
+    
+    VisitDetails *localCurrentVisit = currentVisit;
+
 	UIAlertAction* ok = [UIAlertAction
 						 actionWithTitle:@"OK"
 						 style:UIAlertActionStyleDefault
 						 handler:^(UIAlertAction * action)
 						 {
 							 [alert dismissViewControllerAnimated:YES completion:nil];
-							 currentVisit.status = @"arrived";
-							 currentVisit.arrived = @"YES";
-							 currentVisit.dateTimeMarkArrive = @"";
-							 currentVisit.dateTimeMarkArrive = @"";
-							 currentVisit.coordinateLatitudeMarkArrive = @"0.0";
-							 currentVisit.coordinateLongitudeMarkArrive = @"0.0";
-							 [arriveButton setBackgroundImage:[UIImage imageNamed:@"unarrive-pink-button"]
+                             localCurrentVisit.status = @"arrived";
+                             localCurrentVisit.arrived = @"YES";
+                             localCurrentVisit.dateTimeMarkArrive = @"";
+                             localCurrentVisit.dateTimeMarkArrive = @"";
+                             localCurrentVisit.coordinateLatitudeMarkArrive = @"0.0";
+                             localCurrentVisit.coordinateLongitudeMarkArrive = @"0.0";
+                             [self->arriveButton setBackgroundImage:[UIImage imageNamed:@"unarrive-pink-button"]
 													 forState:UIControlStateNormal];
 						 }];
 	[alert addAction:ok];
@@ -1820,15 +1808,13 @@
 	[alert addAction:cancel];
 	[self presentViewController:alert animated:YES completion:nil];
 }
-
--(void)dealloc
-{
-	[_emParallaxHeaderView removeFromSuperview];
-	_emParallaxHeaderView = nil;
-	[_emTV removeFromParentViewController];
-	_emTV.delegate = nil;
-	_emTV.view = nil;
-	_emTV = nil;
+-(void)dealloc {
+	[emParallaxHeader removeFromSuperview];
+    emParallaxHeader = nil;
+	[emTV removeFromParentViewController];
+	emTV.delegate = nil;
+	emTV.view = nil;
+	emTV = nil;
 	[myMapView cleanDetailMapView];
 	[myMapView removeFromSuperview];
 	[detailView removeFromSuperview];
@@ -1842,7 +1828,6 @@
 	sections = nil;
 	myMapView = nil;
 }
-
 -(void)setClientAndVisitID:(DataClient*)clientID visitID:(VisitDetails*)visitID {
 	
 	currentClient = clientID;
@@ -1857,20 +1842,26 @@
 	detailView = nil;
 	isShowingPopup = NO;
 }
-
 - (void) latestSectionOpened {
 }
-
 - (void) latestSectionOpenedID:(int)sectionNum {
 	if (sectionNum == 0 || sectionNum == 6) {
 		tableRowHeight = 260.0;
-		[self.emTV.tableView reloadData];
+		[emTV.tableView reloadData];
 	} else {
 		tableRowHeight = kTableRowHeight;
-		[self.emTV.tableView reloadData];
+		[emTV.tableView reloadData];
 	}
 }
-
+- (void)setClosedSectionIcon:(UIImage *)iconImg { 
+    
+}
+- (void)setOpenedSectionIcon:(UIImage *)iconImg { 
+    
+}
+- (void)setParallaxTableHeaderView:(EMAccordionTableParallaxHeaderView *)parallaxTable { 
+    
+}
 -(void)flagDetailClicked:(id)sender {
 	
 	if (isShowingPopup) {
@@ -1918,7 +1909,7 @@
 	
 	UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	doneButton.frame = CGRectMake(10, 10, 24, 24);
-	[doneButton setBackgroundImage:[UIImage imageNamed:@"cross"] forState:UIControlStateNormal];
+	[doneButton setBackgroundImage:[UIImage imageNamed:@"btn-close-bright"] forState:UIControlStateNormal];
 	[doneButton addTarget:self
 				   action:@selector(detailPopUpDismiss)
 		 forControlEvents:UIControlEventTouchUpInside];
@@ -1935,7 +1926,7 @@
 	
 	VisitsAndTracking *sharedVisits = [VisitsAndTracking sharedInstance];
 	
-	for (NSDictionary *flagDicClient in currentClient.clientFlagsArray) {
+	for (NSDictionary *flagDicClient in [currentClient getFlags]) {
 		NSString *comparingFlagID = [flagDicClient objectForKey:@"flagid"];
 		
 		for (NSDictionary *flagTableItem in sharedVisits.flagTable) {
@@ -1968,7 +1959,7 @@
 				
 				NSString *upperFlagTxt = [flagLabel uppercaseString];
 				UILabel *flagSrcText = [[UILabel alloc]initWithFrame:CGRectMake(flagItem.frame.origin.x +50, flagItem.frame.origin.y, 280, 24)];
-				[flagSrcText setFont:[UIFont fontWithName:@"Langdon" size:20]];
+				[flagSrcText setFont:[UIFont fontWithName:@"Lato-Regular" size:20]];
 				flagSrcText.numberOfLines = 1;
 				[flagSrcText setTextColor:[PharmaStyle colorAppWhite]];
 				[flagSrcText setText:upperFlagTxt];
@@ -1994,14 +1985,13 @@
 		}
 	}
 }
-
 -(void)flagDetailOverflow:(id)sender {
 	
 	if ([sender isKindOfClass:[UIButton class]]) {
 		UIButton *flagTapButon = (UIButton*)sender;
 		int flagID = (int)flagTapButon.tag;		
 		NSString *flagIDString = [NSString stringWithFormat:@"%i",flagID];
-		for (NSDictionary *flagDicClient in currentClient.clientFlagsArray) {
+		for (NSDictionary *flagDicClient in [currentClient getFlags]) {
 			NSString *comparingFlagID = [flagDicClient objectForKey:@"flagid"];
 			if ([comparingFlagID isEqualToString:flagIDString]) {
 				detailMoreDetailView = [[UIView alloc]initWithFrame:CGRectMake(0,0, detailView.frame.size.width-30, detailView.frame.size.height-20)];
@@ -2010,7 +2000,7 @@
 				
 				UIButton *doneButton = [UIButton buttonWithType:UIButtonTypeCustom];
 				doneButton.frame = CGRectMake(10, 10, 24, 24);
-				[doneButton setBackgroundImage:[UIImage imageNamed:@"cross"] forState:UIControlStateNormal];
+				[doneButton setBackgroundImage:[UIImage imageNamed:@"btn-close-bright"] forState:UIControlStateNormal];
 				[doneButton addTarget:self
 							   action:@selector(detailMoreDetailDismiss)
 					 forControlEvents:UIControlEventTouchUpInside];
@@ -2027,11 +2017,9 @@
 		}
 	}
 }
-
 -(void)detailMoreDetailDismiss {
 	[detailMoreDetailView removeFromSuperview];	
 }
-
 -(void)petDocButton:(id)sender {
 	UIButton *tappedDocButton = (UIButton*)sender;
 	FloatingModalView *fmView = [[FloatingModalView alloc]initWithFrame:CGRectMake(10, 10, self.view.frame.size.width-20, self.view.frame.size.height) 
@@ -2040,7 +2028,6 @@
 															  andTagNum:(int)tappedDocButton.tag];	
 	[fmView show];
 }
-
 -(void)tapDocView:(id)sender {
 	if ([sender isKindOfClass:[UIButton class]]) {
 		UIButton *tappedDocButton = (UIButton*)sender;
@@ -2051,21 +2038,20 @@
 		[fmView show];
 	}
 }
-
 -(void)makePhoneCall {
 	UIAlertController * alert=   [UIAlertController
 								  alertControllerWithTitle:@"CONTACT CUSTOMER"
 								  message:@"CHOOSE METHOD"
 								  preferredStyle:UIAlertControllerStyleAlert];
-	
-	if(![currentClient.cellphone isEqual:[NSNull null]] && [currentClient.cellphone length] > 0) {
+    DataClient *tmpClient = currentClient;
+    if(![currentClient.cellphone isEqual:[NSNull null]] && [currentClient.cellphone length] > 0) {
 		UIAlertAction* phoneCall = [UIAlertAction
 									actionWithTitle:@"CALL - Cell"
 									style:UIAlertActionStyleDefault
 									handler:^(UIAlertAction * action)
 									{
 										[alert dismissViewControllerAnimated:YES completion:nil];
-										NSString *preTeleString = currentClient.cellphone;
+										NSString *preTeleString = tmpClient.cellphone;
 										NSString *telNumStr = @"(\\d\\d\\d)(-?)\\d\\d\\d(-?)\\d\\d\\d\\d";
 										NSString *telNumPattern;
 										telNumPattern = [NSString stringWithFormat:telNumStr,telNumPattern];
@@ -2087,6 +2073,9 @@
 											 NSString *telephoneNumFormat = [@"tel://" stringByAppendingString:regExTel];
 											 [[UIApplication sharedApplication] openURL:[NSURL URLWithString:telephoneNumFormat]];
 											 
+                                            /*[[UIApplication sharedApplication]openURL:[NSURL URLWithString:telephoneNumFormat] options:NULL completionHandler:^(BOOL success) {
+                                                
+                                            }];*/
 										 }];
 										
 										
@@ -2133,13 +2122,14 @@
 	}
 	
 	if(![currentClient.homePhone isEqual:[NSNull null]] && [currentClient.homePhone length] > 0) {
+        NSString *homePhone = currentClient.homePhone;
 		UIAlertAction* phoneCall = [UIAlertAction
 									actionWithTitle:@"CALL - Home Phone"
 									style:UIAlertActionStyleDefault
 									handler:^(UIAlertAction * action)
 									{
 										[alert dismissViewControllerAnimated:YES completion:nil];
-										NSString *preTeleString = currentClient.homePhone;
+										NSString *preTeleString = homePhone;
 										NSString *telNumStr = @"(\\d\\d\\d)(-?)\\d\\d\\d(-?)\\d\\d\\d\\d";
 										NSString *telNumPattern;
 										telNumPattern = [NSString stringWithFormat:telNumStr,telNumPattern];
@@ -2170,13 +2160,15 @@
 	}
 	
 	if(![currentClient.workphone isEqual:[NSNull null]] && [currentClient.workphone length] > 0) {
+        NSString *workphone = currentClient.workphone;
+
 		UIAlertAction* phoneCall = [UIAlertAction
 									actionWithTitle:@"CALL - Home Work"
 									style:UIAlertActionStyleDefault
 									handler:^(UIAlertAction * action)
 									{
 										[alert dismissViewControllerAnimated:YES completion:nil];
-										NSString *preTeleString = currentClient.workphone;
+										NSString *preTeleString = workphone;
 										NSString *telNumStr = @"(\\d\\d\\d)(-?)\\d\\d\\d(-?)\\d\\d\\d\\d";
 										NSString *telNumPattern;
 										telNumPattern = [NSString stringWithFormat:telNumStr,telNumPattern];
@@ -2196,6 +2188,11 @@
 											 NSRange range = [match rangeAtIndex:0];
 											 NSString *regExTel = [preTeleString substringWithRange:range];
 											 NSString *telephoneNumFormat = [@"tel://" stringByAppendingString:regExTel];
+                                             /*[[UIApplication sharedApplication]openURL:[NSURL URLWithString:telephoneNumFormat] 
+                                                                               options:nil
+                                                                     completionHandler:^(BOOL success) {
+                                                                         
+                                                                     }];*/
 											 [[UIApplication sharedApplication] openURL:[NSURL URLWithString:telephoneNumFormat]];
 											 
 										 }];
@@ -2205,24 +2202,25 @@
 		[alert addAction:phoneCall];
 		
 	}
-	
+    
+    NSString *preTeleString = currentClient.cellphone;
+    NSString *telNumStr = @"(\\d\\d\\d)(-?)\\d\\d\\d(-?)\\d\\d\\d\\d";
+    NSString *telNumPattern;
+    telNumPattern = [NSString stringWithFormat:telNumStr,telNumPattern];
+    NSRegularExpressionOptions regexOptions = NSRegularExpressionCaseInsensitive;
+    NSError *error = NULL;
+    NSRegularExpression *telRegex = [NSRegularExpression regularExpressionWithPattern:telNumStr
+                                                                              options:regexOptions
+                                                                                error:&error];
+    MFMessageComposeViewController *textMsg = [[MFMessageComposeViewController alloc]init];
+
 	UIAlertAction* textMessage = [UIAlertAction
 								  actionWithTitle:@"TEXT"
 								  style:UIAlertActionStyleDefault
 								  handler:^(UIAlertAction * action)
 								  {
 									  [alert dismissViewControllerAnimated:YES completion:nil];
-									  NSString *preTeleString = currentClient.cellphone;
-									  NSString *telNumStr = @"(\\d\\d\\d)(-?)\\d\\d\\d(-?)\\d\\d\\d\\d";
-									  NSString *telNumPattern;
-									  telNumPattern = [NSString stringWithFormat:telNumStr,telNumPattern];
-									  
-									  NSRegularExpressionOptions regexOptions = NSRegularExpressionCaseInsensitive;
-									  NSError *error = NULL;
-									  
-									  NSRegularExpression *telRegex = [NSRegularExpression regularExpressionWithPattern:telNumStr
-																												options:regexOptions
-																												  error:&error];
+
 									  
 									  [telRegex enumerateMatchesInString:preTeleString
 																 options:0
@@ -2233,15 +2231,10 @@
 										   NSString *regExTel = [preTeleString substringWithRange:range];
 										   
 										   NSString *telephoneNumFormat = [@"" stringByAppendingString:regExTel];
-										   MFMessageComposeViewController *textMsg = [[MFMessageComposeViewController alloc]init];
 										   textMsg.messageComposeDelegate = self;
 										   textMsg.recipients = [NSArray arrayWithObjects:telephoneNumFormat, nil];
-										   //if (MFMessageComposeViewController.canSendText) {
 										   
 										   [self presentViewController:textMsg animated:YES completion:nil];
-										   
-										   // }
-										   
 										   
 									   }];
 									  
@@ -2272,50 +2265,39 @@
 	controller.delegate = nil;
 	
 }
-
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
 }
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
 }
-- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset {
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView
+                     withVelocity:(CGPoint)velocity
+              targetContentOffset:(inout CGPoint *)targetContentOffset {
 }
-
 - (void)didReceiveMemoryWarning {
 	[super didReceiveMemoryWarning];
 }
-
 - (void)encodeWithCoder:(nonnull NSCoder *)aCoder { 
 }
-
 - (void)traitCollectionDidChange:(nullable UITraitCollection *)previousTraitCollection { 
 }
-
 - (void)preferredContentSizeDidChangeForChildContentContainer:(nonnull id<UIContentContainer>)container { 
 }
-
 - (CGSize)sizeForChildContentContainer:(nonnull id<UIContentContainer>)container withParentContainerSize:(CGSize)parentSize { 
 	return CGSizeMake(0, 0);
 }
-
 - (void)systemLayoutFittingSizeDidChangeForChildContentContainer:(nonnull id<UIContentContainer>)container { 
 }
-
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(nonnull id<UIViewControllerTransitionCoordinator>)coordinator { 
 }
-
 - (void)willTransitionToTraitCollection:(nonnull UITraitCollection *)newCollection withTransitionCoordinator:(nonnull id<UIViewControllerTransitionCoordinator>)coordinator { 
 }
-
 - (void)didUpdateFocusInContext:(nonnull UIFocusUpdateContext *)context withAnimationCoordinator:(nonnull UIFocusAnimationCoordinator *)coordinator { 
 }
-
 - (void)setNeedsFocusUpdate { 
 }
-
 - (BOOL)shouldUpdateFocusInContext:(nonnull UIFocusUpdateContext *)context {
 	return TRUE;
 }
-
 - (void)updateFocusIfNeeded { 
 }
 

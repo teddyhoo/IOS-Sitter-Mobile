@@ -7,10 +7,20 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "VisitDetails.h"
+#import "DataClient.h"
+#import "VisitProgressView.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface VisitReportFinalView : UIView
+
+
+-(instancetype)initWithFrame:(CGRect)frame 
+                   visitInfo:(VisitDetails*)visit 
+                  clientInfo:(DataClient*)client 
+                  parentView:(VisitProgressView*)parent;
+
 
 @end
 

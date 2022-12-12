@@ -21,11 +21,15 @@ BOOL userDeniedLocationTracking;
 
 @implementation LocationTracker
 
+NSDateFormatter *dateFormat2;
+
 + (instancetype) sharedLocationManager {
 	static LocationTracker *sharedMyManager = nil;
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
+        
 		sharedMyManager = [[self alloc] init];
+
 	});
 	return sharedMyManager;
 }
@@ -38,16 +42,18 @@ BOOL userDeniedLocationTracking;
 		self.shareModel.allCoordinates = [[NSMutableArray alloc]init];
         _regionMonitoringSetupForDay = NO;
         visitData = [VisitsAndTracking sharedInstance];
+        
+        dateFormat2 = [[NSDateFormatter alloc]init];
+        [dateFormat2 setDateFormat:@"HH:mm:ss"];
      
 		if(_locationManager == nil) {
-
 			_locationManager = [[CLLocationManager alloc]init];
 			_locationManager.delegate = self;
 			_locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation;
 			_locationManager.allowsBackgroundLocationUpdates = YES;
 			_locationManager.pausesLocationUpdatesAutomatically = NO;
 			_locationManager.distanceFilter = [VisitsAndTracking sharedInstance].distanceSettingForGPS;
-			[[NSNotificationCenter defaultCenter]postNotificationName:@"startGPS" object:nil];
+
 		}
 	
         _regionRadius = 50.0;
@@ -71,17 +77,17 @@ BOOL userDeniedLocationTracking;
     }
 	return self;
 }
-
 -(void)applicationEnterBackground{
+    _isLocationTracking = FALSE;
+
 }
-
-
+-(void) removeObservers {
+    
+}
 -(void)restartLocationUpdates{
 	_isLocationTracking = TRUE;
-	[[NSNotificationCenter defaultCenter]postNotificationName:@"startGPS" object:nil];
 	[_locationManager startUpdatingLocation];
 }
-
 -(void)getLocationPermissions {
 	CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
 	if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"11.0"))
@@ -114,6 +120,18 @@ BOOL userDeniedLocationTracking;
 				title = (status == kCLAuthorizationStatusDenied) ? @"Location services are off" : @"Location Service is not enabled";
 				message = @"To use location you must turn on 'While Using the App' in the Location Services Settings";
 			}
+            
+            /*UIAlertController *alertContoller = [UIAlertController alertControllerWithTitle:title 
+                                                                                     message:message 
+                                                                              preferredStyle:UIAlertControllerStyleAlert];
+                                                 
+            UIAlertAction *settingsAction = [UIAlertAction actionWithTitle:@"Go to settings" 
+                                                                     style:UIAlertActionStyleDefault 
+                                                                   handler:^(UIAlertAction *action) {
+                
+                
+            }];*/
+                                                 
 			UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:title
 																message:message
 															   delegate:self
@@ -153,27 +171,26 @@ BOOL userDeniedLocationTracking;
 	}
 }
 -(void)startLocationTracking {
+    NSLog(@"START LOCATION TRACKING");
 	_isLocationTracking = TRUE;
 	[self getLocationPermissions];
 	[_locationManager startUpdatingLocation];
-	[[NSNotificationCenter defaultCenter]postNotificationName:@"startGPS" object:nil];
-	self.locationUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:_updateFrequencySeconds
+	/*self.locationUpdateTimer = [NSTimer scheduledTimerWithTimeInterval:_updateFrequencySeconds
 																target:self
 															  selector:@selector(updateLocation)
 															  userInfo:nil
-															   repeats:YES];
+															   repeats:YES];*/
 	
 }
 -(void)stopLocationTracking {
 	_isLocationTracking = FALSE;
 	[self.locationManager stopUpdatingLocation];
 }
-
-
+/*
 -(void)stopLocationDelayBy10Seconds{
     [self.locationManager stopUpdatingLocation];
-	[[NSNotificationCenter defaultCenter]postNotificationName:@"stopGPS" object:nil];
 }
+ */
 -(void)locationManager: (CLLocationManager *)manager didFailWithError: (NSError *)error{
 
     switch([error code])
@@ -193,6 +210,8 @@ BOOL userDeniedLocationTracking;
     }
 }
 -(void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations {
+    
+    //NSLog(@"Received location manager location updates: %lu", (unsigned long)[locations count]);
 	CLLocation *bestLocation = nil;
 	
     for(int i=0; i<locations.count; i++){
@@ -209,48 +228,53 @@ BOOL userDeniedLocationTracking;
 	if(bestLocation!=nil
 	   && bestLocation.horizontalAccuracy > 0
 	   && bestLocation.horizontalAccuracy < _minAccuracy) {
-		   
-		   self.myLastLocation = bestLocation.coordinate;
-		   self.myLocationAccuracy= bestLocation.horizontalAccuracy;
-		
-		   _shareModel.validLocationLast = bestLocation;
-		   _shareModel.lastValidLocation = bestLocation.coordinate;
-		   
-		   if([visitData.onSequence isEqualToString:@"000"]) {
-			   
-		   } else {
-			   if(visitData != NULL) {
-				   [_shareModel.allCoordinates addObject:bestLocation];
-
-				   if(visitData.multiVisitArrive) {
-					   [visitData addLocationForMultiArrive:bestLocation];
-				   } else {
-					   [visitData addLocationCoordinate:bestLocation];
-				   }
-			   }
-		   }
+            
+        self.myLastLocation = bestLocation.coordinate;
+        self.myLocationAccuracy= bestLocation.horizontalAccuracy;
+        
+        //NSLog(@"best location not null: %f, %f",_myLastLocation.latitude, _myLastLocation.longitude);
+        _shareModel.validLocationLast = bestLocation;
+        _shareModel.lastValidLocation = bestLocation.coordinate;
+        
+        if([visitData.onSequence isEqualToString:@"000"]) {
+            
+        } else {
+            if(visitData != NULL) {
+                [_shareModel.allCoordinates addObject:bestLocation];
+                
+                if(visitData.multiVisitArrive) {
+                    //NSLog(@"MULTI VISIT CLLOCATION OBJECT");
+                    [visitData addLocationForMultiArrive:bestLocation];
+                } else {
+                    //NSLog(@"SINGLE VISIT CLLOCATOIN OBJECT");
+                    [visitData addLocationCoordinate:bestLocation];
+                }
+            }
+        }
 	}
 	
-	[[NSNotificationCenter defaultCenter]postNotificationName:@"debugGPS" object:nil];
+	
 }
 -(void)updateLocation {
 
     if([_shareModel.allCoordinates count] > _minNumCoordinatesBeforeSend && visitData.isReachable) {
         if (visitData.appRunningBackground) {
-            if(visitData.isReachable) {
-                [self sendCoordinatesToServer:@"foreground"];
-            }
+            NSLog(@"[[[]]] TIMER Send locations to server");
+            //[self sendCoordinatesToServer:@"foreground"];
+            
         } else {
-            if(visitData.isReachable) {
-                [self sendCoordinatesToServer:@"foreground"];
-            }
+            NSLog(@"Send locations to server");
+            [self sendCoordinatesToServer:@"foreground"];
         }
     }
 }
 -(void)sendBackgroundCoordsToServer {
-
-	if(visitData.isReachable) {
+    
+    NSLog(@"Sending coordinates to the server");
+    if(visitData.isReachable) {
+        
 		[self sendCoordinatesToServer:@"completion"];
+                
 		if(visitData.multiVisitArrive) {
 			if([visitData.onSequenceArray count] == 1) {
 				[visitData.onSequenceArray removeAllObjects];
@@ -268,13 +292,10 @@ BOOL userDeniedLocationTracking;
 				removeVisit = nil;
 				VisitDetails *visitForSeq = [visitData.onSequenceArray lastObject];
 				visitData.onSequence = visitForSeq.sequenceID;
-				[[NSNotificationCenter defaultCenter]postNotificationName:@"stopGPS" object:nil];
-				
 			}
 		}
 	}
 }
-
 
 double DegreesToRadians(double degrees) {return degrees * M_PI / 180;};
 double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
@@ -289,7 +310,6 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 	[pauseLocationPersist setObject:@"LOCATION PAUSE" forKey:dateString];
 	
 }
-
 -(double) bearingToLocation:(CLLocation *) fromLocation toLocation:(CLLocation*)toLocation {
 	
 	double lat1 = DegreesToRadians(fromLocation.coordinate.latitude);
@@ -307,18 +327,123 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 	return RadiansToDegrees(radiansBearing);
 }
 
--(void) sendCoordinatesToServer:(NSString*)backgroundOrForeground {
-
-    NSDate *rightNow = [NSDate date];
-    NSDateFormatter *dateFormat2 = [[NSDateFormatter alloc]init];
-    [dateFormat2 setDateFormat:@"HH:mm:ss"];
+-(void) sendVisitCoordinatesToServer {
+    /*NSDate *rightNow = [NSDate date];
     NSString *shortDateString = [dateFormat2 stringFromDate:rightNow];
     NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
     NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",[loginSettings objectForKey:@"username"],[loginSettings objectForKey:@"password"]];
     NSMutableArray *arrayVisitsSendCoords = [[NSMutableArray alloc]init];
+    NSString *visitID = visitData.onWhichVisitID;
+
+    if([visitID isEqual:[NSNull null]]) {
+        visitID = @"000";
+        [[NSNotificationCenter defaultCenter]postNotificationName:@"invalidOnWhichID" object:self];
+        NSLog(@"NOT ON MULTI-VISIT ARRIVE null on whichvisitid");
+    } else {
+        NSLog(@"visit id: %@", visitData.onWhichVisitID);
+    }
+    VisitDetails *currentVisit;
+    for (VisitDetails *visit in visitData.visitData) {
+        if ([visitData.onSequence isEqualToString:visit.sequenceID]) {
+            visitID = visit.appointmentid;
+            currentVisit = visit;
+        }
+    }
     
-    if(visitData.multiVisitArrive && 
-	   [backgroundOrForeground isEqualToString:@"foreground"]) {
+    for (int i = 0; i < [currentVisit.routePoints count]; i++) {
+        
+        NSLog(@"READING COORDINATE: %i", i);
+        NSData *coordData = [currentVisit.routePoints objectAtIndex:i];
+        CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                 fromData:coordData
+                                                                    error:nil];
+        NSLog(@"Coordinates: %f, %f", visitCoord.coordinate.latitude, visitCoord.coordinate.longitude);
+        NSString *visitID = visitData.onWhichVisitID;
+
+        if([visitID isEqual:[NSNull null]]) {
+            visitID = @"000";
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"invalidOnWhichID" object:self];
+            NSLog(@"NOT ON MULTI-VISIT ARRIVE null on whichvisitid");
+        } else {
+            NSLog(@"visit id: %@", visitData.onWhichVisitID);
+        }
+        VisitDetails *currentVisit;
+        for (VisitDetails *visit in visitData.visitData) {
+            if ([visitData.onSequence isEqualToString:visit.sequenceID]) {
+                visitID = visit.appointmentid;
+                currentVisit = visit;
+            }
+        }
+        
+        NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+        NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",[loginSettings objectForKey:@"username"], [loginSettings objectForKey:@"password"]];
+        int i = 0;
+        
+        for (int i = 0; i < [currentVisit.routePoints count]; i++) {
+            
+            NSLog(@"READING COORDINATE: %i", i);
+            NSData *coordData = [currentVisit.routePoints objectAtIndex:i];
+            CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                     fromData:coordData
+                                                                        error:nil];
+            NSLog(@"Coordinates: %f, %f", visitCoord.coordinate.latitude, visitCoord.coordinate.longitude);
+        for (NSData *routePoint in currentVisit.routePoints) {
+            CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                       fromData:routePoint
+                                                                          error:nil];
+            NSString *theLatitude = [NSString stringWithFormat:@"%f",visitCoord.coordinate.latitude];
+            NSString *theLongitude = [NSString stringWithFormat:@"%f",visitCoord.coordinate.longitude];
+            NSString *theAccuracy = [NSString stringWithFormat:@"%f",visitCoord.horizontalAccuracy];
+            NSString *theEvent =@"mv";
+            NSString *theHeading = [NSString stringWithFormat:@"%f", visitCoord.course]; //@"3";
+            NSString *theError = @"";
+            NSDate *timestampCoordinate = visitCoord.timestamp;
+            NSDateFormatter *dateFormat = [[NSDateFormatter alloc]init];
+            [dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
+            NSString *dateString = [dateFormat stringFromDate:timestampCoordinate];
+        }
+    */
+    
+}
+
+
+-(void) sendCoordinatesToServer:(NSString*)backgroundOrForeground 
+{
+    NSDate *rightNow = [NSDate date];
+    NSString *shortDateString = [dateFormat2 stringFromDate:rightNow];
+    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+    NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",[loginSettings objectForKey:@"username"],[loginSettings objectForKey:@"password"]];
+    NSMutableArray *arrayVisitsSendCoords = [[NSMutableArray alloc]init];
+    NSString *visitID = visitData.onWhichVisitID;
+
+    if([visitID isEqual:[NSNull null]]) {
+        visitID = @"000";
+        [[NSNotificationCenter defaultCenter]postNotificationName:@"invalidOnWhichID" object:self];
+        NSLog(@"NOT ON MULTI-VISIT ARRIVE null on whichvisitid");
+    } else {
+        NSLog(@"visit id: %@", visitData.onWhichVisitID);
+    }
+    VisitDetails *currentVisit;
+    for (VisitDetails *visit in visitData.visitData) {
+        if ([visitData.onSequence isEqualToString:visit.sequenceID]) {
+            visitID = visit.appointmentid;
+            currentVisit = visit;
+        }
+    }
+    
+    for (int i = 0; i < [currentVisit.routePoints count]; i++) {
+        
+        NSLog(@"READING COORDINATE: %i", i);
+        NSData *coordData = [currentVisit.routePoints objectAtIndex:i];
+        CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                 fromData:coordData
+                                                                    error:nil];
+        NSLog(@"Coordinates: %f, %f", visitCoord.coordinate.latitude, visitCoord.coordinate.longitude);
+    }
+    
+    if(visitData.multiVisitArrive && [backgroundOrForeground isEqualToString:@"foreground"]) {
+        
+        NSLog(@"Multi-Visit Arrive Status");
         
         if(visitData.onSequenceArray != NULL) {
             for(VisitDetails *visit in visitData.visitData) {
@@ -358,7 +483,8 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
                         if(countVisits == 1) {
                             NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"}]",visitInfo.appointmentid,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
                             credentialString = [credentialString stringByAppendingString:coordinateString];
-                        } else {
+                        } 
+                        else {
                             NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"},",visitInfo.appointmentid,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
                             credentialString = [credentialString stringByAppendingString:coordinateString];
 						}
@@ -371,9 +497,12 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
         [self transmitNetworkRequest:credentialString
                              forType:@"multi-visit"];
 		
-	} else if (visitData.multiVisitArrive && 
-			   [backgroundOrForeground isEqualToString:@"completion"]) {
+	} 
+    
+    else if (visitData.multiVisitArrive &&  [backgroundOrForeground isEqualToString:@"completion"]) {
 		
+        NSLog(@"+++IS MULTI VISIT ARRIVE, SENDING COORDINATES TO THE SERVER, MARKED COMPLETE");
+
 		VisitDetails *visitCompleteRemove;
         if(visitData.onSequenceArray != NULL) {
             for(VisitDetails *visit in visitData.visitData) {
@@ -414,47 +543,95 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
                 credentialString = [credentialString stringByAppendingString:coordinateString];
             }
         }
-        
+        NSLog(@"Transmitting coordinates to network");
         [self transmitNetworkRequest:credentialString forType:@"multi-visit-complete"];
 		
-    } else if (!visitData.multiVisitArrive){
+    } 
+    
+    else if (!visitData.multiVisitArrive) {
+        
         
         NSString *visitID = visitData.onWhichVisitID;
-		if([visitID isEqual:[NSNull null]]) {
+
+        if([visitID isEqual:[NSNull null]]) {
 			visitID = @"000";
-		}
-		
-        if (visitData != NULL) {
-            for (VisitDetails *visit in visitData.visitData) {
-                if ([visitData.onSequence isEqualToString:visit.sequenceID]) {
-                    visitID = visit.appointmentid;
-                }
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"invalidOnWhichID" object:self];
+            NSLog(@"NOT ON MULTI-VISIT ARRIVE null on whichvisitid");
+        } else {
+            NSLog(@"visit id: %@", visitData.onWhichVisitID);
+        }
+        VisitDetails *currentVisit;
+        for (VisitDetails *visit in visitData.visitData) {
+            if ([visitData.onSequence isEqualToString:visit.sequenceID]) {
+                visitID = visit.appointmentid;
+                currentVisit = visit;
             }
         }
+        
         NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
         NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",[loginSettings objectForKey:@"username"], [loginSettings objectForKey:@"password"]];
-        int i = 0;
+        //int i = 0;
         
-        for (CLLocation *coordinateAll in _shareModel.allCoordinates) {
+        for (int i = 0; i < [currentVisit.routePoints count]; i++) {
             
-            NSString *theLatitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.latitude];
-            NSString *theLongitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.longitude];
-            NSString *theAccuracy = [NSString stringWithFormat:@"%f",coordinateAll.horizontalAccuracy];
+            NSLog(@"READING COORDINATE: %i", i);
+            NSData *coordData = [currentVisit.routePoints objectAtIndex:i];
+            CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                     fromData:coordData
+                                                                        error:nil];
+            NSLog(@"Coordinates: %f, %f", visitCoord.coordinate.latitude, visitCoord.coordinate.longitude);
+        //for (NSData *routePoint in currentVisit.routePoints) {
+            /*CLLocation *visitCoord = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class]
+                                                                       fromData:routePoint
+                                                                          error:nil];*/
+            NSString *theLatitude = [NSString stringWithFormat:@"%f",visitCoord.coordinate.latitude];
+            NSString *theLongitude = [NSString stringWithFormat:@"%f",visitCoord.coordinate.longitude];
+            NSString *theAccuracy = [NSString stringWithFormat:@"%f",visitCoord.horizontalAccuracy];
 			NSString *theEvent =@"mv";
-			NSString *theHeading = [NSString stringWithFormat:@"%f", coordinateAll.course]; //@"3";
+			NSString *theHeading = [NSString stringWithFormat:@"%f", visitCoord.course]; //@"3";
             NSString *theError = @"";
-            NSDate *timestampCoordinate = coordinateAll.timestamp;
+            NSDate *timestampCoordinate = visitCoord.timestamp;
             NSDateFormatter *dateFormat = [[NSDateFormatter alloc]init];
             [dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
             NSString *dateString = [dateFormat stringFromDate:timestampCoordinate];
             
-            _shareModel.lastSendTimeStamp = shortDateString;
-            _shareModel.lastSendNumCoordinates = [NSString stringWithFormat:@"%lu",(unsigned long)[_shareModel.allCoordinates count]];
+        /*[
+            {
+                "appointmentptr":"257847",
+                "date":"2021-08-28 16:21:40",
+                "lat":"37.564242",
+                "lon":"-77.472100",
+                "accuracy":"4.700325",
+                "event":"mv",
+                "heading":"-1.000000",
+                "error":""
+            },
+            {
+            "appointmentptr":"257847",
+            "date":"2021-08-28 16:21:48",
+            "lat":"37.564242",
+            "lon":"-77.472100",
+            "accuracy":"4.700325",
+            "event":"mv",
+            "heading":"-1.000000",
+            "error":""
+            },
+            {"appointmentptr":"257847","date":"2021-08-28 16:23:40","lat":"37.564138","lon":"-77.472085","accuracy":"9.574240","event":"mv","heading":"198.632812","error":""},{"appointmentptr":"257847","date":"2021-08-28 16:31:18","lat":"37.564201","lon":"-77.472076","accuracy":"4.755929","event":"mv","heading":"-1.000000","error":""},{"appointmentptr":"257847","date":"2021-08-28 16:31:28","lat":"37.564201","lon":"-77.472076","accuracy":"4.755929","event":"mv","heading":"-1.000000","error":""},{"appointmentptr":"257847","date":"2021-08-28 16:32:22","lat":"37.564217","lon":"-77.471834","accuracy":"19.594050","event":"mv","heading":"69.609375","error":""},
             
-            i++;
+            {
+            "appointmentptr":"257847",
+            "date":"2021-08-28 16:32:25",
+            "lat":"37.564196",
+            "lon":"-77.472069",
+            "accuracy":"4.986665",
+            "event":"mv",
+            "heading":"71.718750",
+            "error":""}]*/
+            //i++;
             
-            if (i < [_shareModel.allCoordinates count]) {
-                NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"},",
+            //if (i < [currentVisit.routePoints count]) {
+                
+            NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"},",
 							    visitID,
 							    dateString,
 							    theLatitude,
@@ -464,9 +641,11 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 							    theHeading,
 							    theError];
 			
-                credentialString = [credentialString stringByAppendingString:coordinateString];
-            } else {
-                NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"}]",
+            NSLog(@"COORD STRING: %@",coordinateString);
+            credentialString = [credentialString stringByAppendingString:coordinateString];
+            //} else {
+                
+          /*      NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"}]",
 							    visitID,
 							    dateString,
 							    theLatitude,
@@ -475,9 +654,15 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 							    theEvent,
 							    theHeading,
 							    theError];
-                credentialString = [credentialString stringByAppendingString:coordinateString];
-            }
+                NSLog(@"FINAL COORDINATE STRING TO BE ADDED TO REQUEST: %@", coordinateString);
+                
+                credentialString = [credentialString stringByAppendingString:coordinateString];*/
+            //}
+        
         }
+        credentialString = [credentialString stringByAppendingString:@"]"];
+        
+        NSLog(@"SENDING COORDINATE AND CREDENTIAL STRING: %@", credentialString);
         
         NSData *requestBodyDataForJSONCoordinates = [credentialString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 		NSMutableURLRequest *urlSendCoordinateData = [self sendCoordUrlRequest:credentialString];
@@ -486,29 +671,41 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
                                                               delegate:self
                                                          delegateQueue:nil];
         
+        //LocationShareModel *shareModelThread = _shareModel;
         NSURLSessionUploadTask *uploadTask = [session uploadTaskWithRequest:urlSendCoordinateData
                                                                    fromData:requestBodyDataForJSONCoordinates
                                                           completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
                                                               
-                                                              NSHTTPURLResponse *httpResp = (NSHTTPURLResponse*) response;
                                                               
-                                                              if(!error && httpResp.statusCode == 200) {
-                                                                  [_shareModel.allCoordinates removeAllObjects];
-																  [[NSNotificationCenter defaultCenter]postNotificationName:@"debugGPS" object:nil];
-
-                                                              }
-                                                          }];
+            NSHTTPURLResponse *httpResp = (NSHTTPURLResponse*) response;
+            NSLog(@"UPLOAD COORDINATES TO SERVER WITH RESPONSE: %@", response);
+                                                              
+            if(!error && httpResp.statusCode == 200) {
+                //[shareModelThread.allCoordinates removeAllObjects];
+                //[[NSNotificationCenter defaultCenter]postNotificationName:@"flushCoordinates" object:self];
+                visitData.onWhichVisitID = @"000";
+                visitData.onSequence = @"000";
+            }
+                                                        
+        }];
         [uploadTask resume];
         [[NSURLCache sharedURLCache]removeAllCachedResponses];
         [session finishTasksAndInvalidate];
-
+        
+        dispatch_queue_t myQueue = dispatch_queue_create("ArriveUpdateQueue", NULL);
+        dispatch_async(myQueue, ^{
+            if(![currentVisit.homeAddress isEqualToString:@"NO ADDRESS"]) {
+                [currentVisit createMapSnapshot];
+            } else {
+                NSLog(@"No valid home address");
+            }
+        });
     }
 
 }
 -(void)transmitNetworkRequest:(NSString*)requestString
 					  forType:(NSString*)type {
-
-	
+    
 	NSData *requestBodyDataForJSONCoordinates = [requestString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
 	NSMutableURLRequest *urlSendCoordinateData = [self sendCoordUrlRequest:requestString];
 	NSURLSessionConfiguration *sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -516,6 +713,9 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 														  delegate:self
 													 delegateQueue:nil];
 	
+    LocationShareModel *shareModelThread = _shareModel;
+
+    
 	NSURLSessionUploadTask *uploadTask = [session uploadTaskWithRequest:urlSendCoordinateData
 															   fromData:requestBodyDataForJSONCoordinates
 													  completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
@@ -526,13 +726,13 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 														  if(!error && httpResp.statusCode == 200) {
 														
 															  if([type isEqualToString:@"multi-visit"]){
-																  
-																  [_shareModel.allCoordinates removeAllObjects];
+                                                                  NSLog(@"Removing all coordinates from share model multi visit");
+                                                                  //[self->_shareModel.allCoordinates removeAllObjects];
 																  
 															  } else if ([type isEqualToString:@"multi-visit-complete"]) {
 																  
 																  if ([visitData.onSequenceArray count] == 0) {
-																	  [_shareModel.allCoordinates removeAllObjects];
+                                                                      [shareModelThread.allCoordinates removeAllObjects];
 																  }
 															  }
 														  } 
@@ -541,7 +741,6 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 	[[NSURLCache sharedURLCache]removeAllCachedResponses];
 	[session finishTasksAndInvalidate];
 }
-
 
 -(NSMutableURLRequest*) sendCoordUrlRequest:(NSString*)requestString {
 	
@@ -557,7 +756,7 @@ double RadiansToDegrees(double radians) {return radians * 180/M_PI;};
 	[urlSendCoordinateData setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
 	[urlSendCoordinateData setTimeoutInterval:20.0];
 	
-	NSString *userAgentString = visitData.userAgentLT;
+	NSString *userAgentString = [visitData getUserAgent];
 	[urlSendCoordinateData setValue:userAgentString forHTTPHeaderField:@"User-Agent"];
 	[urlSendCoordinateData setHTTPBody:requestBodyDataForJSONCoordinates];
 

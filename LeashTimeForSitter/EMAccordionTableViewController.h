@@ -23,13 +23,13 @@ typedef NS_ENUM(NSUInteger, EMAnimationType) {
 - (UIView *) tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section;
 - (void) latestSectionOpened;
 - (void) latestSectionOpenedID:(int)sectionNum;
-
+-(void) setOpenedSectionIcon:(UIImage*)iconImg;
+-(void) setClosedSectionIcon:(UIImage*)iconImg;
+-(void) setParallaxTableHeaderView:(EMAccordionTableParallaxHeaderView* ) parallaxTable;
 @end
 
 @interface EMAccordionTableViewController : UIViewController<UITableViewDataSource, UITableViewDelegate>
 
-@property (nonatomic, strong) UIImage * closedSectionIcon;
-@property (nonatomic, strong) UIImage * openedSectionIcon;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) EMAccordionTableParallaxHeaderView *parallaxHeaderView;
 @property (nonatomic, strong) NSMutableArray *sectionsHeaders;
@@ -37,8 +37,10 @@ typedef NS_ENUM(NSUInteger, EMAnimationType) {
 @property (nonatomic) NSUInteger openedSection;
 
 - (id) initWithTable:(UITableView *)tableView withAnimationType:(EMAnimationType) type;
-
 - (void) addAccordionSection: (EMAccordionSection *) section initiallyOpened:(BOOL)opened;
 - (void) setDelegate: (NSObject <EMAccordionTableDelegate> *) delegate;
+//- (UITableView*) getEMAccordionTableView;
+-(void) setClosedSectionIcon:(UIImage*)closeIcon;
+-(void) setOpenedSectionIcon:(UIImage*)openIcon;
 
 @end

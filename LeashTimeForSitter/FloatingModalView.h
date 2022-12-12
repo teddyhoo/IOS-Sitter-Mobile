@@ -10,11 +10,11 @@
 #import "VisitsAndTracking.h"
 
 
-@interface FloatingModalView: UIView 
+@interface FloatingModalView: UIView <UITextViewDelegate>
 	
-@property(nonatomic,strong) VisitsAndTracking* sharedVisits;
-
 -(void)show;
+-(instancetype)initWithFrame:(CGRect)frame type:(NSString*)type;
+-(instancetype)initWithFrame:(CGRect)frame itemType:(NSString*)itemType andTagNum:(int)tagNum;
 -(instancetype)initWithFrame:(CGRect)frame appointmentID:(NSString*)appointmentID itemType:(NSString*)itemType;
 -(instancetype)initWithFrame:(CGRect)frame appointmentID:(NSString*)appointmentID itemType:(NSString*)itemType andTagNum:(int)tagNum; 
 @end

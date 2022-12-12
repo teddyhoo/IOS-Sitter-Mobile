@@ -4,11 +4,13 @@
 <array>
 	<dict>
 		<key>Filename</key>
-		<string>dog-poo</string>
+		<string>icon-mood-poo</string>
+		<key>Color</key>
+		<string>icon-mood-poo-color</string>
 		<key>Label</key>
 		<string>POO</string>
-		<key>showLabel</key>
-		<string></string>
+		<key>Info</key>
+		<string>Went Poo</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -18,11 +20,13 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>dog-pee-firehydrant</string>
+		<string>icon-mood-pee</string>
+		<key>Color</key>
+		<string>icon-mood-pee-color</string>
 		<key>Label</key>
 		<string>PEE</string>
-		<key>showLabel</key>
-		<string></string>
+		<key>Info</key>
+		<string>Went pee</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -32,25 +36,29 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>happy-icon-red</string>
+		<string>icon-mood-treat</string>
+		<key>Color</key>
+		<string>icon-mood-treat-color</string>
 		<key>Label</key>
-		<string>HAPPY</string>
-		<key>showLabel</key>
-		<string></string>
+		<string>TREAT</string>
+		<key>Info</key>
+		<string>Gave treat</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
-		<string>85</string>
+		<string>325</string>
 		<key>coordinateY</key>
 		<string>140</string>
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>sad-dog-red</string>
+		<string>icon-mood-water</string>
+		<key>Color</key>
+		<string>icon-mood-water-color</string>
 		<key>Label</key>
-		<string>SAD</string>
-		<key>showLabel</key>
-		<string></string>
+		<string>WATER</string>
+		<key>Info</key>
+		<string>Drank water</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -60,11 +68,29 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>angry-icon-red</string>
+		<string>icon-mood-bath</string>
+		<key>Color</key>
+		<string>icon-mood-bath-color</string>
 		<key>Label</key>
-		<string>ANGRY</string>
-		<key>showLabel</key>
-		<string></string>
+		<string>TOWEL</string>
+		<key>Info</key>
+		<string>Dried with towel</string>
+		<key>size</key>
+		<string>32</string>
+		<key>coordinateX</key>
+		<string>85</string>
+		<key>coordinateY</key>
+		<string>140</string>
+	</dict>
+	<dict>
+		<key>Filename</key>
+		<string>icon-mood-shot</string>
+		<key>Color</key>
+		<string>icon-mood-shot-color</string>
+		<key>Label</key>
+		<string>INJECTION</string>
+		<key>Info</key>
+		<string>Gave injection at: </string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -74,11 +100,13 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>sick-icon-red</string>
+		<string>icon-mood-meds</string>
+		<key>Color</key>
+		<string>icon-mood-meds-color</string>
 		<key>Label</key>
-		<string>SICK</string>
-		<key>showLabel</key>
-		<string></string>
+		<string>MEDICATION</string>
+		<key>Info</key>
+		<string>Gave medication at: </string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -88,11 +116,13 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>hungry-icon-red</string>
+		<string>icon-mood-food</string>
+		<key>Color</key>
+		<string>icon-mood-food-color</string>
 		<key>Label</key>
-		<string>HUNGRY</string>
-		<key>showLabel</key>
-		<string></string>
+		<string>FEED</string>
+		<key>Info</key>
+		<string>Gave food</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
@@ -102,29 +132,17 @@
 	</dict>
 	<dict>
 		<key>Filename</key>
-		<string>play-icon-red</string>
+		<string>icon-mood-play</string>
+		<key>Color</key>
+		<string>icon-mood-play-color</string>
 		<key>Label</key>
 		<string>PLAY</string>
-		<key>showLabel</key>
-		<string></string>
+		<key>Info</key>
+		<string>Was in playful mood</string>
 		<key>size</key>
 		<string>32</string>
 		<key>coordinateX</key>
 		<string>285</string>
-		<key>coordinateY</key>
-		<string>140</string>
-	</dict>
-	<dict>
-		<key>Filename</key>
-		<string>kitty-litter</string>
-		<key>Label</key>
-		<string>LITTER</string>
-		<key>showLabel</key>
-		<string></string>
-		<key>size</key>
-		<string>32</string>
-		<key>coordinateX</key>
-		<string>325</string>
 		<key>coordinateY</key>
 		<string>140</string>
 	</dict>

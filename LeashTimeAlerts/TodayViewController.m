@@ -71,7 +71,7 @@
 	
 	UIButton *arrivedButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	arrivedButton.frame = CGRectMake(0,30,140,20);
-	arrivedButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:14];
+	arrivedButton.titleLabel.font = [UIFont fontWithName:@"Lato-Regular" size:14];
 	arrivedButton.titleLabel.textColor = [UIColor blueColor];
 	[arrivedButton setTitle:@"MARK ARRIVE"
 				   forState:UIControlStateNormal];
@@ -91,7 +91,7 @@
 	
 	UIButton *cannotDoButton = [UIButton buttonWithType:UIButtonTypeCustom];
 	cannotDoButton.frame = CGRectMake(140,30,140,20);
-	cannotDoButton.titleLabel.font = [UIFont fontWithName:@"Langdon" size:14];
+	cannotDoButton.titleLabel.font = [UIFont fontWithName:@"Lato-Regular" size:14];
 	cannotDoButton.titleLabel.textColor = [UIColor blueColor];
 	[cannotDoButton setTitle:@"CANNOT DO"
 				   forState:UIControlStateNormal];

@@ -7,10 +7,19 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "VisitDetails.h"
+#import "DataClient.h"
+
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface VisitNoteView : UIView
+
+-(instancetype)initWithFrame:(CGRect)frame 
+                   visitInfo:(VisitDetails*)visit 
+                  clientInfo:(DataClient*)client 
+                  parentView:(UIView*)parent;
+
 
 @end
 

@@ -13,10 +13,19 @@
 @interface LoginView() {
     
     VisitsAndTracking *sharedVisits;
+    
     BOOL isIphone4;
     BOOL isIphone5;
     BOOL isIphone6;
     BOOL isIphone6P;
+    
+    UITextField *loginName;
+    UITextField *passWord;
+    UIButton *loginButton;
+    UIImageView *loginTextBox;
+    UIImageView *passwordText;
+    UILabel *logStatus;
+    UIView *connectStatusBannerView;
 }
 
 
@@ -31,262 +40,280 @@
         
         self.backgroundColor = [PharmaStyle colorBlueShadow];
         sharedVisits = [VisitsAndTracking sharedInstance];
-		
-        [[NSNotificationCenter defaultCenter]addObserver:self
-                                                selector:@selector(reachabilityChanged)
-                                                    name:@"reachable"
-                                                  object:nil];
-        
-        [[NSNotificationCenter defaultCenter]addObserver:self
-                                                selector:@selector(didNotHaveVisits)
-                                                    name:@"noVisits"
-                                                  object:nil];
-        
-        
-        [[NSNotificationCenter defaultCenter]addObserver:self
-                                                selector:@selector(loginFailed)
-                                                    name:@"pollingFailed"
-                                                  object:nil];
-		
-		[[NSNotificationCenter defaultCenter]addObserver:self 
-												selector:@selector(successFullLogin) 
-													name:@"loginSuccess" 
-												  object:NULL];
-
+        [self addNotificationObservers];
         
         NSString *theDeviceType = [sharedVisits tellDeviceType];
+        UIImageView *logoView = [[UIImageView alloc]initWithFrame:CGRectMake(120, 70, 177, 156)];
+        UIImageView *careProvider = [[UIImageView alloc]initWithFrame:CGRectMake(100, 235, 215, 42)];
         
-        float x_logo_big_upper_right_corner = 5;
-        float y_logo_big_upper_right_corner = 15;
-        
-        float x_logo_size = 80;
-        float y_logo_size = 80;
-        
-        float x_LT = 100;
-        float y_LT = 10;
-        
-        UIImageView *loginTextBox;
-        UIImageView *passwordText;
-        
-        _loginButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        [_loginButton setBackgroundImage:[UIImage imageNamed:@"login-red-200"] forState:UIControlStateNormal];
-        [_loginButton addTarget:self action:@selector(loginButtonClick) forControlEvents:UIControlEventTouchUpInside];
-        [self addSubview:_loginButton];
-
-		UIImageView *logoView;
-		UIImageView *logoView2;
-		UIImageView *logoView3;
-		NSString *pListData = [[NSBundle mainBundle]
-							   pathForResource:@"/leashtime-logo-big@3x"
-							   ofType:@"png"];
-		NSString *pListData2 = [[NSBundle mainBundle]
-								pathForResource:@"/leashtime-logo-text@3x"
-								ofType:@"png"];
-		NSString *pListData3 = [[NSBundle mainBundle]
-								pathForResource:@"/sit-stay-propser-compassrose@3x"
-								ofType:@"png"];
-		
-        if ([theDeviceType isEqualToString:@"iPhone6P"]) {
- 
-            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(x_logo_big_upper_right_corner, y_logo_big_upper_right_corner, x_logo_size, y_logo_size)];
-            logoView2 = [[UIImageView alloc]initWithFrame:CGRectMake(x_LT,y_LT, 160,44)];
-			logoView3 = [[UIImageView alloc]initWithFrame:CGRectMake(90,60, 180,40)];
-            isIphone6P = YES;
-            loginTextBox = [[UIImageView alloc]initWithFrame:CGRectMake(50,120, 300, 30)];
-            passwordText = [[UIImageView alloc]initWithFrame:CGRectMake(50,160, 300,30)];
-            _loginButton.frame = CGRectMake(100,250,170, 48);
-        }
-        else if ([theDeviceType isEqualToString:@"iPhone6"]) {
+        loginButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        [loginButton setBackgroundImage:[UIImage imageNamed:@"btn-enter"] forState:UIControlStateNormal];
+        [loginButton addTarget:self
+                         action:@selector(loginButtonClick:) 
+               forControlEvents:UIControlEventTouchUpInside];
+        [self addSubview:loginButton];
             
-            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(20, y_logo_big_upper_right_corner, x_logo_size, y_logo_size)];
-            logoView2 = [[UIImageView alloc]initWithFrame:CGRectMake(x_LT,y_LT, 220,68)];
-            logoView3 = [[UIImageView alloc]initWithFrame:CGRectMake(150,70, 180,40)];            
-            isIphone6 = YES;
-            loginTextBox = [[UIImageView alloc]initWithFrame:CGRectMake(20,120, 300, 30)];
-            passwordText = [[UIImageView alloc]initWithFrame:CGRectMake(20,160, 300,30)];
-            _loginButton.frame = CGRectMake(100,250,170, 48);
-
+        if ([theDeviceType isEqualToString:@"iPhone6P"]) {
+            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(100, 70, 177, 156)];
+        }
+        else if ([theDeviceType isEqualToString:@"XR"]) {
+            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(120, 70, 177, 156)];
+        }  
+        else if ([theDeviceType isEqualToString:@"X"]) {
+            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(100, 40, 177, 156)];
         }
         else if ([theDeviceType isEqualToString:@"iPhone5"]) {
-
-            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(10, 15, 80, 80)];
-            logoView2 = [[UIImageView alloc]initWithFrame:CGRectMake(self.frame.size.width - 220,10, 200,58)];
-            logoView3 = [[UIImageView alloc]initWithFrame:CGRectMake(110,70, 160,30)];
-            isIphone5 = YES;
-            loginTextBox = [[UIImageView alloc]initWithFrame:CGRectMake(40,120, 240, 24)];
-            passwordText = [[UIImageView alloc]initWithFrame:CGRectMake(40,160, 240,24)];
-            _loginButton.frame = CGRectMake(80,200,160, 44);
+            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(120, 70, 177, 156)];
+        } else {
+            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(120, 70, 177, 156)];
         }
-        else {
-            logoView = [[UIImageView alloc]initWithFrame:CGRectMake(10, 15, 80, 80)];
-            logoView2 = [[UIImageView alloc]initWithFrame:CGRectMake(self.frame.size.width - 220,10, 200,58)];
-            logoView3 = [[UIImageView alloc]initWithFrame:CGRectMake(110,70, 160,30)];
-            loginTextBox = [[UIImageView alloc]initWithFrame:CGRectMake(40,120, 240, 32)];
-            passwordText = [[UIImageView alloc]initWithFrame:CGRectMake(40,160, 240,32)];
-            _loginButton.frame = CGRectMake(120,200,100, 28);
-        }
-		
-		logoView3.image = [UIImage imageWithContentsOfFile:pListData3];
-		logoView2.image = [UIImage imageWithContentsOfFile:pListData2];
-		logoView2.backgroundColor = [UIColor clearColor];
-		logoView2.alpha = 1.0;
-		logoView.image = [UIImage imageWithContentsOfFile:pListData];
-		logoView.backgroundColor = [UIColor clearColor];
-		logoView.alpha = 1.0;
-
-		[self addSubview:logoView];
-		[self addSubview:logoView2];
-		[self addSubview:logoView3];
-        [loginTextBox setImage:[UIImage imageNamed:@"username-login-clean"]];
+                
+        careProvider = [[UIImageView alloc]initWithFrame:CGRectMake(81, logoView.frame.origin.y  + 165, 215, 42)];
+        loginTextBox = [[UIImageView alloc]initWithFrame:CGRectMake(67,logoView.frame.origin.y + 200, 240, 40)];
+        passwordText = [[UIImageView alloc]initWithFrame:CGRectMake(67,loginTextBox.frame.origin.y + 45, 240,40)];
+        
+        
+        loginButton.frame = CGRectMake(103,passwordText.frame.origin.y + 45,172, 60);
+        
+        
+        [logoView setImage:[UIImage imageNamed:@"icon-brand"]];
+        [self addSubview:logoView];
+        
+        [loginTextBox setImage:[UIImage imageNamed:@"btn-login-text"]];
         [self addSubview:loginTextBox];
         
-        _loginName = [[UITextField alloc]initWithFrame:CGRectMake(loginTextBox.frame.origin.x + 50,loginTextBox.frame.origin.y,loginTextBox.frame.size.width, loginTextBox.frame.size.height)];
-        [_loginName setClearsOnBeginEditing:YES];
-        [_loginName setBorderStyle:UITextBorderStyleNone];
-        [_loginName setTextColor:[UIColor whiteColor]];
-        [_loginName setFont:[UIFont fontWithName:@"Lato-Bold" size:26]];
-        _loginName.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        _loginName.autocorrectionType = UITextAutocorrectionTypeNo;
-		_loginName.delegate = self;
-		_loginName.tag = 1;
-        [self addSubview:_loginName];
+        [careProvider setImage:[UIImage imageNamed:@"careProvider"]];
+        [self addSubview:careProvider];
+        
+        loginName = [[UITextField alloc]initWithFrame:CGRectMake(loginTextBox.frame.origin.x + 20,loginTextBox.frame.origin.y,loginTextBox.frame.size.width, loginTextBox.frame.size.height)];
+        [loginName setClearsOnBeginEditing:YES];
+        [loginName setBorderStyle:UITextBorderStyleNone];
+        [loginName setFont:[UIFont fontWithName:@"Lato-Light" size:22]];
+        [loginName setTextColor:[UIColor blackColor]];
+        loginName.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        loginName.autocorrectionType = UITextAutocorrectionTypeNo;
+		//loginName.delegate = self;
+		loginName.tag = 1;
+        [self addSubview:loginName];
         
         NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
         NSString *userName = [loginSetting objectForKey:@"username"];
-        _loginName.text = userName;
-
-
-        [passwordText setImage:[UIImage imageNamed:@"password-593x68"]];
+        
+        loginName.text = userName;
+        
+        [passwordText setImage:[UIImage imageNamed:@"btn-login-text"]];
         [self addSubview:passwordText];
         
-        _passWord = [[UITextField alloc]initWithFrame:CGRectMake(passwordText.frame.origin.x + 50,passwordText.frame.origin.y ,passwordText.frame.size.width, passwordText.frame.size.height)];
-        [_passWord setClearsOnBeginEditing:YES];
-        [_passWord setBorderStyle:UITextBorderStyleNone];
-        [_passWord setSecureTextEntry:YES];
-        _passWord.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        _passWord.autocorrectionType = UITextAutocorrectionTypeNo;
-		_passWord.tag = 2;
-		_passWord.delegate = self;
+        passWord = [[UITextField alloc]initWithFrame:CGRectMake(passwordText.frame.origin.x + 20,passwordText.frame.origin.y ,passwordText.frame.size.width, passwordText.frame.size.height)];
+        [passWord setClearsOnBeginEditing:YES];
+        [passWord setBorderStyle:UITextBorderStyleNone];
+        [passWord setSecureTextEntry:YES];
+        [passWord setTextColor:[UIColor blackColor]];
+        passWord.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        passWord.autocorrectionType = UITextAutocorrectionTypeNo;
+		passWord.tag = 2;
+		passWord.delegate = self;
         
-        [self addSubview:_passWord];
-        
-        
+        [self addSubview:passWord];
         UILabel *versionLabel = [[UILabel alloc]initWithFrame:CGRectMake(0, self.frame.size.height-20, 360, 20)];
         [versionLabel setFont:[UIFont fontWithName:@"Lato-Light" size:14]];
         [versionLabel setTextColor:[UIColor whiteColor]];
-
-		NSString *appVersionString = [[NSBundle mainBundle]objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-		NSString *buildNum =[[NSBundle mainBundle]objectForInfoDictionaryKey:@"CFBundleVersion"];
-		NSString *buildNumLabel = [NSString stringWithFormat:@"VERSION: %@    BUILD NUM: %@",appVersionString,buildNum];
+		NSString *buildNumLabel = [NSString stringWithFormat:@"VERSION: %@    BUILD NUM: %@",
+                                   [[NSBundle mainBundle]objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
+                                   [[NSBundle mainBundle]objectForInfoDictionaryKey:@"CFBundleVersion"]];
 		[versionLabel setText:buildNumLabel];
 		[self addSubview:versionLabel];
-        
-        
-        if (!sharedVisits.isReachable) {
+ 
             
-            _failedLogin = [[UILabel alloc]initWithFrame:CGRectMake(0, _loginButton.frame.origin.y + 70, self.frame.size.width, 20)];
-            [_failedLogin setFont:[UIFont fontWithName:@"CompassRoseCPC-Regular" size:18]];
-            [_failedLogin setTextColor:[UIColor redColor]];
-            [_failedLogin setText:@"NO NETWORK"];
-            _failedLogin.textAlignment = NSTextAlignmentCenter;
-            [self addSubview:_failedLogin];
-            
-            
-        }
     }
     return self;
 }
+
+-(void) connectionNotificationUI {
+    
+    NSArray *connectEl = [connectStatusBannerView subviews];
+    for (int i = 0; i < [connectEl count]; i++) {
+        id subViewItem = [connectEl objectAtIndex:i];
+        if ([subViewItem isKindOfClass:[UILabel class]]) {
+            UILabel *labelItem = (UILabel*) subViewItem;
+            [labelItem removeFromSuperview];
+            labelItem = nil;
+        }
+    }
+    [connectStatusBannerView removeFromSuperview];
+    
+    
+}
+-(void) noConnectionNotificationUI {
+    connectStatusBannerView = [[UIView alloc]initWithFrame:CGRectMake(0,0,self.frame.size.width, 60)];
+    [connectStatusBannerView setBackgroundColor:[UIColor redColor]];
+    [connectStatusBannerView setAlpha:0.75];
+    UILabel *noConnectLabel = [[UILabel alloc]initWithFrame:CGRectMake(0, 0, self.frame.size.width, 30)];
+    [noConnectLabel setFont:[UIFont fontWithName:@"Lato-Bold" size:14]];
+    [noConnectLabel setTextColor:[UIColor whiteColor]];
+    [noConnectLabel setText:@"NO CONNECTION"];
+    [noConnectLabel setTextAlignment:NSTextAlignmentCenter];
+    [connectStatusBannerView addSubview:noConnectLabel];
+    [self addSubview:connectStatusBannerView];
+}
+-(void) addNotificationObservers {
+    
+    [[NSNotificationCenter defaultCenter]addObserver:self
+                                            selector:@selector(connectionNotificationUI)
+                                                name:@"reachable"
+                                              object:nil];
+    
+    [[NSNotificationCenter defaultCenter]addObserver:self
+                                            selector:@selector(noConnectionNotificationUI)
+                                                name:@"unreachable"
+                                              object:nil];
+    
+    [[NSNotificationCenter defaultCenter]addObserver:self
+                                            selector:@selector(didNotHaveVisits)
+                                                name:@"noVisits"
+                                              object:nil];
+    
+    
+    [[NSNotificationCenter defaultCenter]addObserver:self
+                                            selector:@selector(loginFailed)
+                                                name:@"pollingFailed"
+                                              object:nil];
+    
+    
+}
+-(void)removeObservers {
+    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"noVisits" object:nil];
+    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"pollingFailed" object:nil];
+    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"reachable" object:nil];
+    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"unreachable" object:nil];
+    
+}
 -(BOOL) textFieldShouldBeginEditing:(UITextField *)textField {
 	if(textField.tag == 1) {
-		[_loginName setTintColor:[UIColor whiteColor]];
+		//[_loginName setTintColor:[UIColor whiteColor]];
 	} else {
-		[_passWord setTintColor:[UIColor whiteColor]];
+		//[_passWord setTintColor:[UIColor whiteColor]];
 	}	
 	return TRUE;
 }
-
 -(BOOL) textFieldShouldEndEditing:(UITextField *)textField {
 	if(textField.tag == 1) {
-		[_loginName setTintColor:[UIColor whiteColor]];
+		//[_loginName setTintColor:[UIColor whiteColor]];
 	} else {
-		[_passWord setTintColor:[UIColor whiteColor]];
+		//[_passWord setTintColor:[UIColor whiteColor]];
 	}	
 	return TRUE;
 
 }
--(void)loginButtonClick {
-
-    [_failedLogin setText:@""];
+-(void) loginButtonClick:(id)sender {
+    [logStatus removeFromSuperview];
     
-    NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];    
+    logStatus = [[UILabel alloc]initWithFrame:CGRectMake(loginButton.frame.origin.x,
+                                                         loginButton.frame.origin.y - 158,
+                                                         loginButton.frame.size.width,
+                                                         loginButton.frame.size.height)];
+    
+    [logStatus setBackgroundColor:[UIColor clearColor]];
+    [logStatus setFont:[UIFont fontWithName:@"Lato-Light" size:18]];
+    [logStatus setTextAlignment:NSTextAlignmentCenter];
+    [logStatus setTextColor:[UIColor yellowColor]];
+    [logStatus setText:@"Logging in ... "];
+    [logStatus setAlpha:1.0];
+    
+    UILabel *logStatusTmp = logStatus;
+    NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
     NSString *userName;
 
-    if ([_loginName.text isEqualToString:@""]) {
+    if ([loginName.text isEqualToString:@""]) {
         userName = @"";
+        [logStatus setText:@"NO LOGIN NAME"];
 
-    } else if ([_loginName.text length] > 1){
-        userName = _loginName.text;
+    } else if ([loginName.text length] > 1){
+        userName = loginName.text;
         [loginSetting setObject:userName forKey:@"username"];
-
     }
-    NSString *password = _passWord.text;
-	//password = @"QVX992DISABLED";
+    NSString *password = passWord.text;
+    //password = @"QVX992DISABLED";
    // NSLog(@"password: %@",_passWord.text);
-    
-    if ([password isEqualToString:@""] && [userName isEqualToString:@""]) {
-        
-        _failedLogin = [[UILabel alloc]initWithFrame:CGRectMake(120, _loginButton.frame.origin.y + 70, 200, 20)];
-        [_failedLogin setFont:[UIFont fontWithName:@"CompassRoseCPC-Regular" size:18]];
-        [_failedLogin setTextColor:[UIColor yellowColor]];
-        [_failedLogin setText:@"NEED USER NAME AND PASSWORD"];
-        [self addSubview:_failedLogin];
-        
+    [self addSubview:logStatusTmp];
+
+    if ([password isEqualToString:@""]) {
+        [logStatus setText:@"NO PASSWORD"];
         
     } else {
         [loginSetting setObject:password forKey:@"password"];
-
+        
         NSDate *todayDate = [NSDate date];
         
-        if (sharedVisits.isReachable) {
-			
-            [sharedVisits networkRequest:todayDate toDate:todayDate];
-			
-        }
+        [sharedVisits networkRequest:todayDate toDate:todayDate];
         
-        _failedLogin = [[UILabel alloc]initWithFrame:CGRectMake(120, _loginButton.frame.origin.y + 70, 200, 20)];
-        [_failedLogin setFont:[UIFont fontWithName:@"CompassRoseCPC-Regular" size:18]];
-        [_failedLogin setTextColor:[UIColor yellowColor]];
-        if (sharedVisits.isReachable) {
-            [_failedLogin setText:@"LOGGING IN"];
+        if ([sender isKindOfClass:[UIButton class]]) {
+            
+            UIButton *loginButton = (UIButton*)sender;
+            [loginButton setUserInteractionEnabled:FALSE];
+            [UIView animateWithDuration:0.3 animations:^{
+                loginButton.frame = CGRectMake(loginButton.frame.origin.x - 5,
+                                               loginButton.frame.origin.y - 5,
+                                               loginButton.frame.size.width +5,
+                                               loginButton.frame.size.height -5);
+                [loginButton setAlpha:0.5];
+                
+            } completion:^(BOOL finished) {
+                [loginButton setAlpha:0.5];
+                loginButton.frame = CGRectMake(loginButton.frame.origin.x + 5,
+                                               loginButton.frame.origin.y + 5,
+                                               loginButton.frame.size.width -5,
+                                               loginButton.frame.size.height +5);
+                
+                [loginButton setUserInteractionEnabled:TRUE];
+            }];
         }
-        [self addSubview:_failedLogin];
     }
 }
-
 -(void) successFullLogin {
-	[_failedLogin setText:@"SUCCESSFUL LOGIN"];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"noVisits" object:nil];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"pollingFailed" object:nil];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"reachable" object:nil];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"successfulLogin" object:nil];
-}
 
+    loginName.delegate = nil;
+    passWord.delegate  = nil;
+    
+    NSArray *subVArr = [self subviews];
+    for (id v in subVArr) {
+        if ([v isKindOfClass:[UIButton class]]) {
+            UIButton *vButton = (UIButton*)v;
+            [vButton removeFromSuperview];
+            vButton =nil;
+        } else if ([v isKindOfClass:[UIImageView class]]) {
+            UIImageView *vButton = (UIImageView*)v;
+            [vButton removeFromSuperview];
+            vButton =nil;
+        } else if ([v isKindOfClass:[UILabel class]]) {
+            UILabel *vButton = (UILabel*)v;
+            [vButton removeFromSuperview];
+            vButton =nil;
+        } else if ([v isKindOfClass:[UIImageView class]]) {
+            UIImageView *vButton = (UIImageView*)v;
+            [vButton removeFromSuperview];
+            vButton =nil;
+        } else if ([v isKindOfClass:[UITextField class]]) {
+            UITextField *vButton = (UITextField*)v;
+            [vButton removeFromSuperview];
+            vButton =nil;
+        } 
+    }
+     [self removeObservers];
+}
 -(void) didNotHaveVisits {
     
-    [_failedLogin removeFromSuperview];
     sharedVisits.firstLogin = YES;
     [[NSNotificationCenter defaultCenter]postNotificationName:@"loginNoVisits" object:self];
 }
-
 -(void) loginFailed {
-    
-	NSLog(@"called login failed in ViewController with failure code string: %@", sharedVisits.pollingFailReasonCode);
-    [_failedLogin removeFromSuperview];
-    _failedLogin = [[UILabel alloc]initWithFrame:CGRectMake(50, 300, 330, 20)];
-    [_failedLogin setFont:[UIFont fontWithName:@"Lato-Regular" size:14]];
-    [_failedLogin setTextColor:[UIColor redColor]];
+
+    [loginButton setUserInteractionEnabled:TRUE];
+    [passWord setText:@""];
     
     NSString *failureCodeString;
+
+    passWord.text = @"";
     
     if ([sharedVisits.pollingFailReasonCode isEqualToString:@"S"]) {
         failureCodeString = @"SITTER MOBILE APP NOT ENABLED FOR BUSINESS";
@@ -314,44 +341,32 @@
         failureCodeString = @"NOT A SITTER ACCOUNT [X]";
     } else if ([sharedVisits.pollingFailReasonCode isEqualToString:@"T"]) {
         failureCodeString = @"TEMP PASSWORD [T]";
-	} else {
-        [_failedLogin setTextColor:[UIColor yellowColor]];
+    } else if([sharedVisits.pollingFailReasonCode isEqualToString:@"OK"]) {
+        failureCodeString = @"SUCCESSFUL LOGIN";
+    } else {
         failureCodeString = @"PROBLEM WITH NETWORK";
     }
-    [_failedLogin setText:failureCodeString];
     
-    [self addSubview:_failedLogin];
+    logStatus.text = failureCodeString;
+    
 }
-
 -(void) viewWillDisappear:(BOOL)animated {
 
 }
-
 -(void)dealloc {
     
     //NSLog(@"Dealloc Login View");
-    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"noVisits" object:nil];
-    [[NSNotificationCenter defaultCenter]removeObserver:self name:@"pollingFailed" object:nil];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"reachable" object:nil];
-	[[NSNotificationCenter defaultCenter]removeObserver:self name:@"loginSuccess" object:nil];
-    _failedLogin = nil;
-    _loginButton = nil;
-    _loginName = nil;
-    _passWord = nil;
+    [self removeObservers];
+    loginButton = nil;
+    loginName = nil;
+    passWord = nil;
 	
 }
-
 -(void)successfullPassSet {
-	[_failedLogin removeFromSuperview];
-	[_failedLogin setText:@"TYPE NEW PASSWORD TO LOGIN"];
-	[self addSubview:_failedLogin];
 	
 }
-
 -(void)reachabilityChanged {
-	
-	[_failedLogin removeFromSuperview];
-	
+    
 }
 
 

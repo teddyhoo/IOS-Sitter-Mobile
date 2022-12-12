@@ -6,17 +6,15 @@
 //  Copyright (c) 2014 Ted Hooban. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
+#import <CoreFoundation/CoreFoundation.h>
 #import "LocationTracker.h"
 #import "LocationShareModel.h"
 #import "Reachability.h"
 #import "VisitDetails.h"
-#define kHOSTNAME @"leashtime.com"
-#define kHOSTNAMEALT @"https://leashtime.com"
 
 @interface VisitsAndTracking : NSObject <CLLocationManagerDelegate, NSURLSessionDelegate> {
     
-    NSMutableData *_responseData;
+    //NSMutableData *_responseData;
     NSString *deviceType;
     NSMutableDictionary *coordinatesForVisits;
     
@@ -27,24 +25,21 @@
 extern NSString *const pollingCompleteWithChanges;
 extern NSString *const pollingFailed;
 
-@property (nonatomic,strong) NSString *userAgentLT;
-@property NSString *pollingFailReasonCode;
+@property (strong,nonatomic) LocationTracker * locationTracker;
+@property (nonatomic,strong) NSMutableArray *clientData;
+@property (nonatomic,strong) NSMutableArray *visitData;
+@property (nonatomic,strong) NSMutableArray *flagTable;
 
+//@property (nonatomic,strong) NSString *userAgentLT;
+@property NSString *pollingFailReasonCode;
 @property(nonatomic,copy)NSString *onWhichVisitID;
 @property(nonatomic,copy)NSString *onSequence;
 @property(nonatomic,strong)NSMutableArray *onSequenceArray;
 @property(nonatomic,strong)NSDate *todayDate;
 @property(nonatomic,strong)NSDate *showingWhichDate;
 @property(nonatomic,strong)LocationShareModel* shareLocationManager;
-@property (strong,nonatomic) LocationTracker * locationTracker;
-@property (nonatomic,strong) NSMutableArray *arrivalCompleteQueueItems;
-@property (nonatomic,strong) NSMutableArray *clientData;
-@property (nonatomic,strong) NSMutableArray *visitData;
-@property (nonatomic,strong) NSMutableArray *flagTable;
-@property (nonatomic,strong) NSMutableArray *cachedPetImages;
-@property (nonatomic,strong) NSMutableArray *localNotificationQueue;
-@property (nonatomic,strong) NSFileManager *fileManager;
-@property (nonatomic,strong) NSMutableArray *lastRequest;
+
+
 
 @property BOOL appRunningBackground;
 @property BOOL firstLogin;
@@ -70,41 +65,83 @@ extern NSString *const pollingFailed;
 @property int minNumCoordinatesSend;
 @property float regionRadius;
 @property float checkWeatherFrequency;
-@property int numFutureDaysVisitInformation;
+//@property int numFutureDaysVisitInformation;
 @property double numMinutesEarlyArrive;
 
+-(NSDate*) getDateFromStringArriveComplete:(NSString*)stringDate;
+-(NSString*) getStringForDateArriveComplete:(NSDate*)date;
+-(NSDate*) getDateRequestResponse:(NSString*)stringDate;
+-(NSString*)getStringFromDateRequestResponse:(NSDate*)date;
+-(NSString *) getTimeShortString:(NSDate*)date;
 
--(void)setDeviceType:(NSString*)typeDev;
--(NSString*)tellDeviceType;
--(NSMutableArray *)getTodayVisits;
--(NSArray*)getCoordinatesForVisit:(NSString*)visitID;
--(void)getNextPrevDay:(NSDate*)dateGet;
--(void)foregroundBadRequest;
+
+-(NSString *) getArriveCompleteDataFormatter:(NSDate*) date;
+//-(NSString*) getyyyyMMdd:(NSDate*)date;
+//-(NSString*) get_yyyy_MM_dd:(NSDate*)date;
+//-(NSString*) get_MM__dd__yyyy:(NSDate*) date;
+-(NSString*) get_yyyyMMddHHmmss:(NSDate*) date;
+-(NSString*) get_HH_mm_ss:(NSDate*)date;
+-(NSString*) get_h_mm_a:(NSDate*)date;
+-(NSString*)  get__yyyy__MM__dd:(NSDate*)date;
+
+
 -(void)networkRequest:(NSDate*)forDate toDate:(NSDate*)toDate;
+-(void)networkRequest:(NSDate *)forDate toDate:(NSDate *)toDate pollRequest:(NSString*)pollingRequest;
 
--(void) changeTempPassword:(NSString*)currentTemp loginID:(NSString*)loginID newPass:(NSString*)newPass;
-
--(void) sendVisitNote:(NSString*)note
-               moods:(NSString*)moodButtons
-            latitude:(NSString*)currentLatitude
-           longitude:(NSString*)currentLongitude
-          markArrive:(NSString*)arriveTime
-        markComplete:(NSString*)completionTime
-    forAppointmentID:(NSString*)appointmentID;
-
-
--(void) addLocationCoordinate:(CLLocation*)point;
--(void) addPictureForPet:(UIImage*)petPicture;
+-(void) getTodayVisits;
+-(void)getNextPrevDay:(NSDate*)dateGet;
+-(NSMutableArray*) sortVisitsByStatus:(NSArray*)currentVisitData;
+-(void) copyTempVisitArrayToVisitData:(NSMutableArray*)tempArray;
 -(void) updateArriveCompleteInTodayYesterdayTomorrow:(VisitDetails*)visitItem withStatus:(NSString*)status; 
 -(void) addLocationForMultiArrive:(CLLocation*)location;
--(void) logoutCleanup; 
--(void) resendAllCoordinatesToServer:(NSString*)visitID;
--(void) markVisitUnarrive:(NSString*)visitID;
--(void) optimizeRoute;
+-(void) addLocationCoordinate:(CLLocation*)location;
+-(NSArray*) getCoordinatesForVisit:(NSString*)visitID;
+
+-(void) readSettings;
+-(NSString*) getUserAgent;
+-(void)setUserAgent:(NSString*) userAgentInfoString;
+-(NSMutableDictionary*)getColorPalette;
 -(void) changePollingFrequency:(NSNumber*)changePollingFrequencyTo;
 -(void) turnOffGPSTracking;
 -(void) changeDistanceFilter:(NSNumber*)changeDistanceFilterTo;
--(void) readSettings;
+-(void)setDeviceType:(NSString*)typeDev;
+-(NSString*)tellDeviceType;
+-(void) logoutCleanup; 
+-(void) backgroundClean;
+-(void) logLowMem;
+-(void) logFailedUpload:(NSString*)uploadType forVisitID:(NSString*)visitID;
+
+CGImageRef MyCreateThumbnailImageFromData (NSData * data, int imageSize);
+
+-(BOOL) checkForBadResendBeforeSync;
+-(BOOL) checkReachability;
+-(void) sendVisitReport:(VisitDetails*)visit;
+-(void) sendMarkArriveOrComplete:(VisitDetails*)visitInfo status:(NSString*)arriveOrComplete;
+-(void) sendPhotoOrMapImage:(UIImage*)imageFile fullPathFileName:(NSString*)filenameString;
+-(void) markVisitUnarrive:(NSString*)visitID;
+-(void) changeTempPassword:(NSString*)currentTemp loginID:(NSString*)loginID newPass:(NSString*)newPass;
+-(void) sendVisitNote:(NSString*)consolidatedVisitNote moods:(NSString*)moodButtons latitude:(NSString*)currentLatitude longitude:(NSString*)curentLongitude markArrive:(NSString*)arriveTime markComplete:(NSString*)completeTime forAppointmentID:(NSString*)appointmentID;
+
+-(void) sendPhotoViaAFNetwork:(NSURL*)filePathURL
+                    imageData:(NSData*)imageData
+          imageFileNameString:(NSString*)imageFileNameString
+              forVisitDetails:(VisitDetails*)visitDetails;
+
+//-(void) optimizeRoute;
+
+/*
+@property (nonatomic,weak) NSString *pollingFailReasonCode;
+@property(nonatomic,weak)NSString *onWhichVisitID;
+@property(nonatomic,weak)NSString *onSequence;
+@property(nonatomic,weak)NSMutableArray *onSequenceArray;
+@property(nonatomic,weak)NSDate *todayDate;
+@property(nonatomic,weak)NSDate *showingWhichDate;
+@property(nonatomic,weak)LocationShareModel* shareLocationManager;
+@property (nonatomic,weak) LocationTracker * locationTracker;
+@property (nonatomic,weak) NSMutableArray *clientData;
+@property (nonatomic,weak) NSMutableArray *visitData;
+@property (nonatomic,weak) NSMutableArray *flagTable;
+*/
 
 
 @end

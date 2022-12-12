@@ -13,7 +13,7 @@
 
 
 @interface LocationShareModel : NSObject
-@property (nonatomic) BackgroundTaskManager * bgTask;
+//@property (nonatomic) BackgroundTaskManager * bgTask;
 
 @property (nonatomic) CLLocationCoordinate2D lastValidLocation;
 @property (nonatomic) CLLocation *validLocationLast;

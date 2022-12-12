@@ -7,797 +7,387 @@
 //
 
 #import "VisitsAndTracking.h"
-#import "LocationTracker.h"
 #import "DateTools.h"
 #import "DataClient.h"
-#import "VisitDetails.h"
+#import "PetProfile.h"
 #import "AFNetworking.h"
-#import "DistanceMatrix.h"
-#import "SDWebImageDownloader.h"
-#import <UserNotifications/UserNotifications.h>
-#import <MapKit/MapKit.h>
+#import "PetProfile.h"
+//#import <UserNotifications/UserNotifications.h>
+//#import <MapKit/MapKit.h>
+#import <CoreFoundation/CoreFoundation.h>
+#import <ImageIO/ImageIO.h>
 
-@implementation VisitsAndTracking {
+@interface VisitsAndTracking() {
+    
+    NSMutableArray *yesterdayVisits;
+    NSMutableArray *tomorrowVisits;
+    NSMutableArray *todaysVisits;
+    
+    NSURLSession *mySession;
+    NSURLSessionConfiguration *sessionConfiguration;
+    
+    NSDateFormatter *oldFormatter;                                      // HH:mm:ss
+    NSDateFormatter *newFormatter;                                    // h:mm a
+    NSDateFormatter *timerFormat;                                       //mm:ss
+    NSDateFormatter *arriveCompleteDateFormatter;         // HH:mm:ss mmm dd yyy
+    NSDateFormatter *formatNextTwo;                                   // yyyy/MM/dd
+    NSDateFormatter *todayNextDayFormatter;                     // yyyyMMdd
+    NSDateFormatter *formatFutureDate;                              // yyyy-MM-dd
+    NSDateFormatter *dateTimeRequestResponseFormat;   // yyyy-MM-dd HH:mm:ss
+    NSDateFormatter *shortDateFormatter;                          // MM/dd/yyyy
 
-	NSMutableArray *yesterdayVisits;
-	NSMutableArray *tomorrowVisits;
-	NSMutableArray *todaysVisits;
-	NSURLSession *mySession;
-	NSURLSessionConfiguration *sessionConfiguration;
-	NSTimer *checkForBadArriveComplete;
-	NSDateFormatter *oldFormatter;
-	NSDateFormatter *newFormatter;		
-	NSDateFormatter *dateFormat;
-	NSDateFormatter *requestDateFormat;
-
+    NSString *pollFailCode;
+    NSString *userAgentLT;
+    int numFutureDaysVisitInformation;
 }
 
+@end
+
+@implementation VisitsAndTracking 
 NSString *const pollingCompleteWithChanges = @"pollingCompleteWithChanges";
 NSString *const pollingFailed = @"pollingFailed";
 int NUMBER_MIN_LATE_NOTIFICATION = -30;
 int totalCoordinatesInSession;
+//**************************************************************************
+//*                                                                        *
+//*           DATE FORMATTER GLOBALS                     *
+//*                                                                        *
+//**************************************************************************
 
-// PathSense API key: 7wVgpNip5P3mbBLtTYML33jrHesVKKwo3XeTpONV
-// PathSense API client ID: DbbrW7ccQjp4pEKMBoRms7B5EcpTtJcAo6DZHulf
-// @"LeashTime Sitter iOS /v2.5 /08-10-2016";
-// QVX992DISABLED
-
-
-/*
- native-client-visit-report-list.php
- 
- Returns a JSON array describing the visit reports for a supplied client in a supplied date range.
- Parameters: loginid,password,start,end,clientid.  All are required.
- Errors
- Authentication errors: single character, as everywhere else.
- Other errors - displayed as a multiline text that may include:
- 
- ERROR: No provider found for user {$user['userid']}
- ERROR: No client id supplied
- ERROR: No client found for client id [$clientid]
- ERROR: Bad start parameter [$start]
- ERROR: Bad end parameter [$end]
- Sample Visit Report
- 
- {"clientptr":"45","NOTE":"Just so playful and exuberant.","ARRIVED":"2016-10-02 10:14:23","COMPLETED":"2016-10-02 10:18:30","MAPROUTEURL":"https:\/\/LeashTime.com\/visit-map.php?id=175825","VISITPHOTOURL":"appointment-photo.php?id=175825","MOODBUTTON":{"cat":"0","happy":"1","hungry":"0","litter":"0","pee":"1","play":"0","poo":"1","sad":"0","shy":"0","sick":"0"},"appointmentid":"175825","date":"2016-10-02","starttime":"09:00:00","timeofday":"9:00 am-11:00 am","sittername":"Brian Martinez","nickname":null}
- 
- No Reports Found
- 
- []
- 
- Sample Visit Report for a visit not arrived, not completed, and no note:
- 
- [{"clientptr":"45","NOTE":null,"ARRIVED":null,"COMPLETED":null,"MAPROUTEURL":"https:\/\/LeashTime.com\/visit-map.php?id=175931","VISITPHOTOURL":null,"MOODBUTTON":[],"appointmentid":"175931","date":"2016-10-05","starttime":"09:00:00","timeofday":"9:00 am-11:00 am","sittername":"Brian Martinez","nickname":null}
- 
- TBD
- 
- This script filters only on date and client.  It returns data for every visit in the range, regardless of status.  Please let me know if you would like me to filter it any further.  If so, please describe the filter in terms of the attributes listed above (e.g., do not return a report if NOTE is null, ARRIVED is null, and COMPLETED is null
- 
- PLEASE BE AWARE...
- 
- The NOTE attribute is the visit note at the time of retrieval, which may be the manager's note (from the client) or the sitter's note.
-
-
-*/
-+(VisitsAndTracking *)sharedInstance {
+-(void)         setupDateFormatters {
+    oldFormatter = [[NSDateFormatter alloc] init];
+    newFormatter = [[NSDateFormatter alloc] init];
+    dateTimeRequestResponseFormat = [[NSDateFormatter alloc]init];
+    formatFutureDate = [[NSDateFormatter alloc]init];
+    shortDateFormatter = [[NSDateFormatter alloc]init];
+    formatNextTwo = [[NSDateFormatter alloc]init];
+    todayNextDayFormatter = [[NSDateFormatter alloc]init];
+    arriveCompleteDateFormatter =[[NSDateFormatter alloc]init];
+    timerFormat = [[NSDateFormatter alloc]init];
     
-    static VisitsAndTracking *_sharedInstance = nil;
-    static dispatch_once_t oncePredicate;
-	dispatch_once(&oncePredicate, ^{
-		_sharedInstance =[[VisitsAndTracking alloc]init];
-	});
-    return _sharedInstance;
+    [todayNextDayFormatter setDateFormat:@"yyyyMMdd"];
+    [oldFormatter setDateFormat:@"HH:mm:ss" ]; // The old format
+    [newFormatter setDateFormat:@"h:mm a"]; // The new format
+    [formatFutureDate setDateFormat:@"yyyy-MM-dd"];
+    [shortDateFormatter setDateFormat:@"MM/dd/yyyy"];
+    [formatNextTwo setDateFormat:@"yyyy/MM/dd"];
+    [arriveCompleteDateFormatter setDateFormat:@"HH:mm:ss MMM dd YYYY"];
+    [dateTimeRequestResponseFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
 }
--(id)init {
-    self = [super init];
-    if (self) {
+-(NSDate*) getDateFromStringArriveComplete:(NSString*)stringDate {
+    //"HH:mm:ss MMM dd yyyy"
+    NSDate *date = [arriveCompleteDateFormatter dateFromString:stringDate];
+    return date;
+}
+-(NSString*) getStringForDateArriveComplete:(NSDate*)date {
+    //"HH:mm:ss MMM dd yyyy"
+    return [arriveCompleteDateFormatter stringFromDate:date];
+}
+-(NSDate*) getDateRequestResponse:(NSString*)stringDate {
+    // @"yyyy-MM-dd HH:mm:ss"
+    NSDate *date =[dateTimeRequestResponseFormat dateFromString:stringDate];
+    return date;
+    
+}
+-(NSString *) getTimeShortString:(NSDate*)date {
+    NSString *shortTimeString = [newFormatter stringFromDate:date];
+    return shortTimeString;
+}
+-(NSString*)getStringFromDateRequestResponse:(NSDate*)date {
+    // @"yyyy-MM-dd HH:mm:ss"
+    return [dateTimeRequestResponseFormat stringFromDate:date];
+}
+-(NSString *) getArriveCompleteDataFormatter:(NSDate*) date {
+    return [arriveCompleteDateFormatter stringFromDate:date];
+}
+
+//**************************************************************************
+//*                                                                        *
+//*           NETWORK REQUESTS WITH AF NETWORK LIB                         *
+//*                                                                        *
+//**************************************************************************
+
+-(void) getCachedPetImages:(NSArray*)clientDataTemp {
         
-        _userAgentLT = @"LEASHTIME V3.3/FEBRUARY 2018/IOS 11";
-        _shareLocationManager = [LocationShareModel sharedModel];
-        _numFutureDaysVisitInformation = 20;
-        _onSequence = @"000";
-        _onSequenceArray = [[NSMutableArray alloc]init];
-        _onWhichVisitID = NULL;
-
-
-		_todayDate = [NSDate date];
-        _showingWhichDate = _todayDate;        
-        _cachedPetImages = [[NSMutableArray alloc]init];
-        _fileManager = [NSFileManager new];
-        
-        coordinatesForVisits = [[NSMutableDictionary alloc]init];
-        _clientData = [[NSMutableArray alloc]init];
-        _visitData = [[NSMutableArray alloc]init];
-	    _localNotificationQueue = [[NSMutableArray alloc]init];
-		
-		yesterdayVisits = [[NSMutableArray alloc]init];
-		tomorrowVisits = [[NSMutableArray alloc]init];
-		todaysVisits = [[NSMutableArray alloc]init];
-	    
-        _arrivalCompleteQueueItems = [[NSMutableArray alloc]init];
-
-		 sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
-        sessionConfiguration.URLCache = [[NSURLCache alloc]initWithMemoryCapacity:0 diskCapacity:0 diskPath:nil];
-		
-		oldFormatter = [[NSDateFormatter alloc] init];
-		newFormatter = [[NSDateFormatter alloc] init];
-		dateFormat = [[NSDateFormatter alloc]init];
-		oldFormatter.dateFormat = @"HH:mm:ss"; // The old format
-		newFormatter.dateFormat = @"h:mm a"; // The new format
-		[dateFormat setDateFormat:@"YYYY-MM-dd"];
-		[dateFormat setTimeZone:[NSTimeZone localTimeZone]];
-		requestDateFormat=[[NSDateFormatter alloc]init];
-		[requestDateFormat setDateFormat:@"yyyy-MM-dd"];
-	    
-		checkForBadArriveComplete = [NSTimer scheduledTimerWithTimeInterval:1200 
-																	repeats:YES
-																	  block:^(NSTimer * _Nonnull timer) {
-																		  
-																		  NSMutableArray *removeItems = [[NSMutableArray alloc]init];
-																		  //[self visitDetailsVisitStatus];
-																		  
-																		  for (NSMutableDictionary *arrComDic in _arrivalCompleteQueueItems) {
-																			  
-																			  NSString *statusString = [arrComDic objectForKey:@"STATUS"];
-																			  NSString *resendType = [arrComDic objectForKey:@"TYPE"];
-																			  NSString *appointmentID = [arrComDic objectForKey:@"appointmentptr"];
-																			  
-																			  if (_isReachable) {
-																				  if ([statusString isEqualToString:@"FAIL-NETWORK RESPONSE"] || [statusString isEqualToString:@"FAIL-NOT REACHABLE"] ) {
-																					 
-																					  if([resendType isEqualToString:@"IMAGE"]) {
-																						  [self resendImageUpload:arrComDic];
-																					  } else if ([resendType isEqualToString:@"MAP"]) {
-																						  VisitDetails *visit = [self getVisitDetailForVisitID:appointmentID];
-																						  if ([visit.mapSnapTakeStatus isEqualToString:@"FAIL"] ||
-																							  visit.mapSnapShotImage == NULL) {
-																							  [self createMapSnapshot:visit requestDic:arrComDic];
-																						  } else if (![visit.mapSnapTakeStatus isEqualToString:@"FAIL"] &&
-																									 visit.mapSnapShotImage != NULL &&
-																									 [visit.mapSnapUploadStatus isEqualToString:@"FAIL"]) {
-																							  [self resendMapSnapUpload:arrComDic];
-																						  }
-																					  } else if ([resendType isEqualToString:@"MAP-SNAP"]) {
-																						  VisitDetails *visit = [self getVisitDetailForVisitID:appointmentID];
-																						  [self createMapSnapshot:visit  requestDic:arrComDic];
-																					  } else if([resendType isEqualToString:@"ARRIVE"]) {
-																						  [self resendMarKArriveCompleteToServer:arrComDic];
-																					  } else if([resendType isEqualToString:@"COMPLETE"]) {
-																						  [self resendMarKArriveCompleteToServer:arrComDic];
-																					  } else if ([resendType isEqualToString:@"REPORT"]) {
-																						  [self resendVisitReport:arrComDic];
-																					  }	
-																				  } else if ([statusString isEqualToString:@"SUCCESS"]) {
-																					  [removeItems addObject:arrComDic];
-																				  }
-																			  }
-																		  } 
-																		  @synchronized(@"resendQueue") {
-																			  [_arrivalCompleteQueueItems removeObjectsInArray:removeItems];
-																		  }
-																	  }];
-			
-        [self setUpReachability];
-        [self readSettings];
-		
-		
-	    [[NSNotificationCenter 
-		  defaultCenter]addObserver:self
-		 selector:@selector(changeResendStatus:)
-		 name:@"resendArriveCompleteSuccess"
-		 object:nil];
-	
+    NSString *userName;
+    NSString *password;
+    NSMutableArray *cachedPetImages = [self localPetImagesList];
+    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+    
+    if ([loginSettings objectForKey:@"username"] != NULL) {
+        userName = [loginSettings objectForKey:@"username"];
+    }
+    if ([loginSettings objectForKey:@"password"]) {
+        password = [loginSettings objectForKey:@"password"];
     }
     
-    return self;
+    AFURLSessionManager *sessionMgr = [[AFURLSessionManager alloc]initWithSessionConfiguration:sessionConfiguration];
+
+    for (DataClient *clientProfile in clientDataTemp) {
+        if([[clientProfile getPetInfo] count] > 0){
+            for (PetProfile *petProfile in [clientProfile getPetInfo]) {
+                NSString *petID = [petProfile  getPetID];
+                NSString *nameOfImageFile = [NSString stringWithFormat:@"profile-%@-%@.png",clientProfile.clientID,petID];
+                    BOOL imageCached = FALSE;
+                    for (NSString *petIDForImage in cachedPetImages) {
+                        if ([petIDForImage isEqualToString:nameOfImageFile]) {
+                            imageCached = TRUE;
+                            NSURL *documentsDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSDocumentDirectory
+                                                                                                  inDomain:NSUserDomainMask
+                                                                                         appropriateForURL:nil
+                                                                                                    create:NO
+                                                                                                     error:nil];
+                            documentsDirectoryURL = [documentsDirectoryURL URLByAppendingPathComponent:nameOfImageFile];
+                            NSData *petProfileImage = [NSData dataWithContentsOfURL:documentsDirectoryURL];
+                            CGImageRef thumbnail = MyCreateThumbnailImageFromData(petProfileImage, 100);
+                            UIImage *petImageJpeg = [UIImage imageWithCGImage:thumbnail];
+                            CFRelease(thumbnail);
+                            dispatch_queue_t mergeClientInfo = dispatch_queue_create("MergeClientInfo", NULL);
+                            dispatch_async(mergeClientInfo, ^{
+                                if (petProfileImage != nil) {
+                                    [petProfile addProfileImage:petImageJpeg];
+                                }
+                            });
+                        }
+                    }
+                    if (!imageCached) {
+                        NSString *petImgReq = [NSString stringWithFormat:@"https://leashtime.com/pet-photo-sessionless.php?id=%@&loginid=%@&password=%@",petID,userName,password];
+                        NSURL *urlRequest = [NSURL URLWithString:petImgReq];
+                        NSURLRequest *request = [NSURLRequest requestWithURL:urlRequest];
+                        
+                        NSURLSessionDownloadTask *downloadTask =[sessionMgr downloadTaskWithRequest:request
+                                                                                           progress:nil
+                                                                                        destination:^NSURL * _Nonnull (NSURL * _Nonnull targetPath, NSURLResponse * _Nonnull response) {
+                            
+                            NSURL *documentsDirectoryURL = [[NSFileManager defaultManager] URLForDirectory:NSDocumentDirectory
+                                                                                                  inDomain:NSUserDomainMask
+                                                                                         appropriateForURL:nil
+                                                                                                    create:YES
+                                                                                                     error:nil];
+                            return [documentsDirectoryURL URLByAppendingPathComponent:nameOfImageFile];
+                            
+                        } completionHandler:^(NSURLResponse * _Nonnull response, NSURL * _Nullable filePath, NSError * _Nullable error) {
+                            NSData *imageData = [NSData dataWithContentsOfURL:filePath];
+                            dispatch_queue_t mergeClientInfo = dispatch_queue_create("MergeClientInfo", NULL);
+                            dispatch_async(mergeClientInfo, ^{
+                                if (imageData != nil) {
+                                    CGImageRef thumbnail = MyCreateThumbnailImageFromData(imageData, 100);
+                                    UIImage *petImageJpeg = [UIImage imageWithCGImage:thumbnail];
+                                    CFRelease(thumbnail);
+                                    [loginSettings setObject:@"cachedImage" forKey:nameOfImageFile];
+                                    [petProfile addProfileImage:petImageJpeg];
+                                }
+                            });
+                        }];
+                        [downloadTask resume];
+                    }
+            }
+        }
+    }
+    //[[NSNotificationCenter defaultCenter]postNotificationName:@"updateTable" object:self];
+
 }
 
--(void)foregroundBadRequest {
-	NSMutableArray *removeItems = [[NSMutableArray alloc]init];
-	for (NSMutableDictionary *arrComDic in _arrivalCompleteQueueItems) {
-		
-		NSString *statusString = [arrComDic objectForKey:@"STATUS"];
-		NSString *resendType = [arrComDic objectForKey:@"TYPE"];
-		NSString *appointmentID = [arrComDic objectForKey:@"appointmentptr"];
+-(void) sendPhotoViaAFNetwork:(NSURL*)filePathURL
+                    imageData:(NSData*)imageData
+          imageFileNameString:(NSString*)imageFileNameString
+             forVisitDetails:(VisitDetails*)visitDetails {
+    
+    
+    //NSLog(@"SENDING PHOTO VIA VISITS TRACKING SINGLETON from file path URL: %@", [filePathURL absoluteString]);
+    //NSLog(@"Size of the data: %lul",[imageData length]);
 
-		if (_isReachable) {
-			if ([statusString isEqualToString:@"FAIL-NETWORK RESPONSE"] || [statusString isEqualToString:@"FAIL-NOT REACHABLE"] ) {
-				
-				if([resendType isEqualToString:@"IMAGE"]) {
-					
-					[self resendImageUpload:arrComDic];
-					
-				} else if ([resendType isEqualToString:@"MAP"]) {
-					
-					VisitDetails *visit = [self getVisitDetailForVisitID:appointmentID];
-					
-					if ([visit.mapSnapTakeStatus isEqualToString:@"FAIL"] ||
-						visit.mapSnapShotImage == NULL) {
-						
-						[self createMapSnapshot:visit requestDic:arrComDic];
-						
-					} else if (![visit.mapSnapTakeStatus isEqualToString:@"FAIL"] &&
-							   visit.mapSnapShotImage != NULL &&
-							   [visit.mapSnapUploadStatus isEqualToString:@"FAIL"]) {
-						
-						[self resendMapSnapUpload:arrComDic];
-					}
-				} else if ([resendType isEqualToString:@"MAP-SNAP"]) {
-					
-					VisitDetails *visit = [self getVisitDetailForVisitID:appointmentID];
-					[self createMapSnapshot:visit  requestDic:arrComDic];
-					
-				} else if([resendType isEqualToString:@"ARRIVE"]) {
-					
-					[self resendMarKArriveCompleteToServer:arrComDic];
-					
-				} else if([resendType isEqualToString:@"COMPLETE"]) {
-					
-					[self resendMarKArriveCompleteToServer:arrComDic];
-					
-				} else if ([resendType isEqualToString:@"REPORT"]) {
-					
-					[self resendVisitReport:arrComDic];
-					
-				}	
-			} else if ([statusString isEqualToString:@"SUCCESS"]) {
-				
-				[removeItems addObject:arrComDic];
-			}
-		}
-	} 
-	@synchronized(@"resendQueue") {
-		[_arrivalCompleteQueueItems removeObjectsInArray:removeItems];
-	}
-}
-																	
--(VisitDetails*)getVisitDetailForVisitID:(NSString*) appointmentID {
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:appointmentID]) {
-			return visit;
-		}
-	}
-	return NULL;
-}
-																			
-- (MKCoordinateRegion)regionForAnnotations:(NSArray *)annotations {
-	
-	CLLocationDegrees minLat = 90.0;
-	CLLocationDegrees maxLat = -90.0;
-	CLLocationDegrees minLon = 180.0;
-	CLLocationDegrees maxLon = -180.0;
-	
-	for (CLLocation *location in annotations) {
-		
-		CLLocationCoordinate2D coordinates = CLLocationCoordinate2DMake(location.coordinate.latitude, location.coordinate.longitude);
-		if (coordinates.latitude < minLat) {
-			minLat = coordinates.latitude;
-		}
-		if (coordinates.longitude < minLon) {
-			minLon = coordinates.longitude;
-		}
-		if (coordinates.latitude > maxLat) {
-			maxLat = coordinates.latitude;
-		}
-		if (coordinates.longitude > maxLon) {
-			maxLon = coordinates.longitude;
-		}
-	}
-	
-	double maxLatDouble = maxLat;
-	maxLatDouble = maxLatDouble - minLat;
-	double maxLonDouble = maxLon;
-	maxLonDouble = maxLonDouble - minLon;
-	CLLocationCoordinate2D convertCoord = CLLocationCoordinate2DMake(maxLatDouble, maxLonDouble);
-	CLLocationDegrees maxLatConvert = convertCoord.latitude;
-	CLLocationDegrees maxLonConvert = convertCoord.longitude;
-	MKCoordinateSpan span = MKCoordinateSpanMake(maxLatConvert, maxLonConvert);
-	CLLocationCoordinate2D center = CLLocationCoordinate2DMake((maxLat - span.latitudeDelta / 2), maxLon - span.longitudeDelta / 2);	
-	return MKCoordinateRegionMake(center, span);
+    NSDictionary *creds = [[NSUserDefaults standardUserDefaults]dictionaryRepresentation];
+    NSString *username = [creds objectForKey:@"username"];
+    NSString *pass = [creds objectForKey:@"password"];
+    NSString *scriptName = @"https://leashtime.com/appointment-photo-upload.php";
+    
+    NSDictionary *parameters = @{@"loginid":  username,@"password": pass,@"appointmentid": visitDetails.appointmentid};
+    
+    NSURLSessionConfiguration *sessionConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
+    AFURLSessionManager *manager = [[AFURLSessionManager alloc]initWithSessionConfiguration:sessionConfig];
+    AFHTTPResponseSerializer *serializerInstance = [AFHTTPResponseSerializer serializer];
+    serializerInstance.acceptableContentTypes = [NSSet setWithObjects:@"text/html", nil];
+    manager.responseSerializer = serializerInstance;
+    NSMutableURLRequest *request = [[AFHTTPRequestSerializer serializer] multipartFormRequestWithMethod:@"POST"
+                                                                                              URLString:scriptName
+                                                                                             parameters:parameters
+                                                                              constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
+        
+    
+        [formData appendPartWithFileData:imageData
+                                    name:@"image"
+                                fileName:imageFileNameString
+                                mimeType:@"image/png"];
+    
+        
+    } error:nil];
+    
+    NSURLSessionUploadTask *uploadTask;
+    uploadTask = [manager uploadTaskWithStreamedRequest:request
+                                               progress:^(NSProgress * _Nonnull uploadProgress) {
+        
+        
+                
+    }
+                                      completionHandler:^(NSURLResponse * _Nonnull response, id  _Nullable responseObject, NSError * _Nullable error) {
+        
+        if (error) {
+            [visitDetails setUploadStatusForPhoto:@"FAIL"];
+            [visitDetails writeVisitDataToFile];
+            NSLog(@"ERROR: %@", error);
+            NSLog(@"-------------------XXX--------------------------------------------------------------");
+            NSLog(@"-------------------XXX---IMAGE UPLOAD FAILURE %@ with upload status value: %@" , visitDetails.appointmentid, visitDetails.imageUploadStatus);
+            NSLog(@"-------------------XXX--------------------------------------------------------------");
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"updateTable"
+                                                               object:self];
+            
+        } else {
+            
+            if ([visitDetails.imageUploadStatus isEqualToString:@"FAIL"]) {
+             
+                [[NSNotificationCenter defaultCenter]postNotificationName:@"checkBadResend"
+                                                                   object:self];
+                NSLog(@"RESEND IS SUCCESSFUL");
+                
+            }
+            [visitDetails setUploadStatusForPhoto:@"SUCCESS"];
+            NSLog(@"PHOTO UPLOAD SUCCESS -- UPDATING THE PROGRESS VIEW");
+            
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"photoFinishUpload"
+                                                                   object:self];
+            
+            dispatch_queue_t myQueue = dispatch_queue_create("WritePhotoDetailFile", NULL);
+            dispatch_async(myQueue, ^{
+                [visitDetails writeVisitDataToFile];
+            });
+        }
+    }];
+    [uploadTask resume];
+    
+    
 }
 
-- (void)createMapSnapshot:(VisitDetails*)currentVisit requestDic:(NSMutableDictionary*)arrComDic {
-	UIImageView *mapSnapShotImage;
-	
-	if([deviceType isEqualToString:@"iPhone6P"]) {
-		mapSnapShotImage = [[UIImageView alloc]initWithFrame:CGRectMake(15, 350, 345, 345)];
-	} else if ([deviceType isEqualToString:@"iPhone6"]) {
-		mapSnapShotImage = [[UIImageView alloc]initWithFrame:CGRectMake(15, 335, 310, 310)];
-	} else if ([deviceType isEqualToString:@"iPhone5"]) {
-		mapSnapShotImage = [[UIImageView alloc]initWithFrame:CGRectMake(15, 280, 254, 254)];
-	} else if ([deviceType isEqualToString:@"iPhone4"]) {
-		mapSnapShotImage = [[UIImageView alloc]initWithFrame:CGRectMake(15, 280, 300, 300)];
-	}
-	float markVisitCompleteLat;
-	float markVisitComplateLon;
-	markVisitComplateLon = [currentVisit.coordinateLongitudeMarkComplete floatValue];
-	markVisitCompleteLat = [currentVisit.coordinateLatitudeMarkComplete floatValue];
-	//CLLocationCoordinate2D completeVisit = CLLocationCoordinate2DMake(markVisitCompleteLat,markVisitComplateLon);
-	__block MKMapSnapshotter *snapshotter;
-	__block NSArray *redrawVisitPoints = [NSArray arrayWithArray:[self getCoordinatesForVisit:currentVisit.appointmentid]];
-	//__block NSDictionary *arriveCompleteBad = arrComDic;
-	MKMapSnapshotOptions *mapSnapOp = [[MKMapSnapshotOptions alloc]init];
-	
-	mapSnapOp.size = CGSizeMake(mapSnapShotImage.frame.size.width, mapSnapShotImage.frame.size.height);
-	mapSnapOp.scale = [[UIScreen mainScreen]scale];
-	mapSnapOp.mapType = MKMapTypeStandard;
-	mapSnapOp.showsBuildings = YES;
-	mapSnapOp.showsPointsOfInterest = YES;
-	
-	MKMapCamera *mapViewVC = [[MKMapCamera alloc]init];
-	mapViewVC.pitch = 45;
-	mapViewVC.altitude = 400;
-	mapSnapOp.camera = mapViewVC;
-	//MKCoordinateRegion region;
-	CLLocationCoordinate2D clientHome = CLLocationCoordinate2DMake([currentVisit.latitude floatValue], [currentVisit.longitude floatValue]);
-	
-	//if([redrawVisitPoints count] > 4) {
-	//	region = [self regionForAnnotations:redrawVisitPoints];
-	//	mapSnapOp.region = region;
-	//	mapViewVC.centerCoordinate = completeVisit;
-	//} else {
-		double maxLatSpan = clientHome.latitude;
-		double maxLonSpan = clientHome.longitude;
-		maxLatSpan = 0.002611;
-		maxLonSpan = 0.002964;
-		CLLocationCoordinate2D clientLoc = CLLocationCoordinate2DMake(maxLatSpan, maxLonSpan);
-		MKCoordinateSpan span = MKCoordinateSpanMake(clientLoc.latitude, clientLoc.longitude);
-		MKCoordinateRegion region = MKCoordinateRegionMake(clientHome, span);
-		mapViewVC.centerCoordinate = clientHome;
-		mapSnapOp.region = region;
-	//}
+-(void) sendMapSnapshotViaAFNetwork:(NSURL*)filePathURL
+                          imageData:(NSData*)imageData
+                imageFileNameString:(NSString*)imageFileNameString
+                    forVisitDetails:(VisitDetails*) visitDetails {
 
-	snapshotter = [[MKMapSnapshotter alloc]initWithOptions:mapSnapOp];
-	[snapshotter startWithCompletionHandler:^(MKMapSnapshot * _Nullable snapshot, NSError * _Nullable error) {
-		
-		if(error == nil) {
-			UIImage * res = nil;
-			UIImage * image = snapshot.image;
-			UIGraphicsBeginImageContextWithOptions(image.size, YES, image.scale);
-			[image drawAtPoint:CGPointMake(0, 0)];
-			CGContextRef context = UIGraphicsGetCurrentContext();
-			UIColor *color = [UIColor blueColor];
-			CGContextSetStrokeColorWithColor(context,[color CGColor]);
-			CGContextSetLineWidth(context,4.0f);
-			CGContextBeginPath(context);
-			CLLocationCoordinate2D coordinates[[redrawVisitPoints count]];
-			for(int i=0;i<[redrawVisitPoints count];i++)
-			{
-				CLLocation *thePoint = [redrawVisitPoints objectAtIndex:i];
-				coordinates[i] = thePoint.coordinate;
-			}
-			for (int i = 0; i < [redrawVisitPoints count]; i++) {
-				CGPoint point = [snapshot pointForCoordinate:coordinates[i]];					
-				if(i==0)
-				{
-					CGContextMoveToPoint(context,point.x, point.y);
-				}
-				else{
-					CGContextAddLineToPoint(context,point.x, point.y);
-				}
-			}
-			CGContextStrokePath(context);
-			MKAnnotationView *pin = [[MKAnnotationView alloc] initWithAnnotation:nil reuseIdentifier:@""];
-			UIImage *pinImage = [UIImage imageNamed:@"red-paw"];
-			CGPoint point = [snapshot pointForCoordinate:clientHome];
-			CGPoint pinCenterOffset = pin.centerOffset;
-			point.x -= pin.bounds.size.width / 2.0;
-			point.y -= pin.bounds.size.height / 2.0;
-			point.x += pinCenterOffset.x;
-			point.y += pinCenterOffset.y;
-			[pinImage drawAtPoint:point];
-			res = UIGraphicsGetImageFromCurrentImageContext();
-
-			UIGraphicsEndImageContext();
-			mapSnapShotImage.image = res;
-			[arrComDic setValue:@"SUCCESS" forKey:@"MAP-SNAP"];
-			[currentVisit addMapsnapShotImageToVisit:res];
-
-		}
-	}];
 }
 
--(void)visitDetailsVisitStatus { 
-	
-	for (VisitDetails *visit in _visitData) {
-		
-		if([visit.currentArriveVisitStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"ARRIVE"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		} 
-		if([visit.currentCompleteVisitStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"COMPLETE"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		}
-		if([visit.imageUploadStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"IMAGE"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		}
-		if([visit.mapSnapUploadStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"MAP"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		} 
-		if([visit.mapSnapTakeStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"MAP-SNAP"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		} 
-		if([visit.visitReportUploadStatus isEqualToString:@"FAIL"]) {
-			NSMutableDictionary *resendDic = [[NSMutableDictionary alloc]init];
-			[resendDic setObject:visit.appointmentid forKey:@"appointmentptr"];
-			[resendDic setObject:@"REPORT"  forKey:@"TYPE"];
-			[resendDic setObject:@"FAIL" forKey:@"STATUS"];
-		}
-	}
+-(void) markVisitArriveOrComplete:(NSString*)visitStatus andAppointmentID:(NSString*)appointmentID {
+    
 }
 
--(BOOL)checkVisitStatus:(NSString*)visitID type:(NSString*)requestType {
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:visitID]) {
-			
-			if ([requestType isEqualToString:@"IMAGE"]) {
-				if ([visit.imageUploadStatus isEqualToString:@"SUCCESS"] ||
-					[visit.imageUploadStatus isEqualToString:@"PEND"]) {
-					return TRUE;
-				}
-			} else if ([requestType isEqualToString:@"MAP"]) {
-				if ([visit.mapSnapUploadStatus isEqualToString:@"SUCCESS"] ||
-					[visit.mapSnapUploadStatus isEqualToString:@"PEND"]) {
-					return TRUE;
-				}
-			}  else if ([requestType isEqualToString:@"ARRIVE"]) {
-				if ([visit.currentArriveVisitStatus isEqualToString:@"SUCCESS"] ||
-					[visit.currentArriveVisitStatus isEqualToString:@"PEND"]) {
-					return TRUE;
-				}
-			}  else if ([requestType isEqualToString:@"COMPLETE"]) {
-				if ([visit.currentCompleteVisitStatus isEqualToString:@"SUCCESS"] ||
-					[visit.currentCompleteVisitStatus isEqualToString:@"PEND"]) {
-					return TRUE;
-				}
-			} else if ([requestType isEqualToString:@"REPORT"]) {
-				if ([visit.visitReportUploadStatus isEqualToString:@"SUCCESS"] ||
-					[visit.visitReportUploadStatus isEqualToString:@"PEND"]) {
-					return TRUE;
-				}
-			}
-		}
-	}
-	return FALSE;
+
+-(NSString*) createVisitReportMoodButtons:(VisitDetails*) currentVisit {
+    NSString *moodButton = @"buttons={";
+    
+    if(currentVisit.didPoo) {
+        moodButton = [moodButton stringByAppendingString:@"\"poo\":\"yes\""];
+    } else if (!currentVisit.didPoo) {
+        moodButton = [moodButton stringByAppendingString:@"\"poo\":\"no\""];
+    }
+    if(currentVisit.didPee) {
+        moodButton = [moodButton stringByAppendingString:@",\"pee\":\"yes\""];
+    } else if (!currentVisit.didPee) {
+        moodButton = [moodButton stringByAppendingString:@",\"poo\":\"no\""];
+    }
+    if(currentVisit.gaveTreat) {
+        moodButton = [moodButton stringByAppendingString:@",\"treat\":\"yes\""];
+    } else if (!currentVisit.gaveTreat) {
+        moodButton = [moodButton stringByAppendingString:@",\"treat\":\"no\""];
+    }
+    if(currentVisit.gaveWater) {
+        moodButton = [moodButton stringByAppendingString:@",\"water\":\"yes\""];
+    } else if (!currentVisit.gaveWater) {
+        moodButton = [moodButton stringByAppendingString:@",\"water\":\"no\""];
+    }
+    if(currentVisit.dryTowel) {
+        moodButton = [moodButton stringByAppendingString:@",\"towel\":\"yes\""];
+    } else if (!currentVisit.dryTowel) {
+        moodButton = [moodButton stringByAppendingString:@",\"towel\":\"no\""];
+    }
+    if(currentVisit.gaveInjection) {
+        moodButton = [moodButton stringByAppendingString:@",\"injection\":\"yes\""];
+    } else if (!currentVisit.gaveInjection) {
+        moodButton = [moodButton stringByAppendingString:@",\"injection\":\"no\""];
+    }
+    if(currentVisit.gaveMedication) {
+        moodButton = [moodButton stringByAppendingString:@",\"medication\":\"yes\""];
+    } else if (!currentVisit.gaveMedication) {
+        moodButton = [moodButton stringByAppendingString:@",\"medication\":\"no\""];
+    }
+    if(currentVisit.didFeed) {
+        moodButton = [moodButton stringByAppendingString:@",\"feed\":\"yes\""];
+    } else if (!currentVisit.didFeed) {
+        moodButton = [moodButton stringByAppendingString:@",\"feed\":\"no\""];
+    }
+    if(currentVisit.didPlay) {
+        moodButton = [moodButton stringByAppendingString:@",\"play\":\"yes\""];
+    } else if (!currentVisit.didPlay) {
+        moodButton = [moodButton stringByAppendingString:@",\"play\":\"no\""];
+    }
+    
+    NSString *closeMood = @"}";
+    moodButton = [moodButton stringByAppendingString:closeMood];
+    return moodButton;
+    
 }
 
--(void) resendMapSnapUpload:(NSDictionary*) resendDicData {
-	NSString *scriptName = @"https://leashtime.com/appointment-map-upload.php";
-	
-	AFHTTPRequestOperationManager *manager = [AFHTTPRequestOperationManager manager];
-	AFJSONResponseSerializer *serializer = [AFJSONResponseSerializer serializerWithReadingOptions:NSJSONReadingAllowFragments];
-	manager.responseSerializer = serializer;
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"application/json"];
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"text/html"];
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"text/plain"];
-		
-	NSDictionary *creds = [[NSUserDefaults standardUserDefaults]dictionaryRepresentation];
-	NSString *username = [creds objectForKey:@"username"];
-	NSString *pass = [creds objectForKey:@"password"];
-	NSString *appointmentID = [resendDicData objectForKey:@"apppointmentptr"];
-
-	NSDictionary *parameters = @{@"loginid":  username,
-								 @"password": pass,
-								 @"appointmentid":[resendDicData objectForKey:@"appointmentptr"]};
-	
-	[manager POST:scriptName
-	   parameters:parameters
-constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
-	
-	
-	[formData appendPartWithFileData:[resendDicData objectForKey:@"imageData"]
-								name:@"image"
-							fileName:[resendDicData objectForKey:@"imageFile"]
-							mimeType:@"image/png"];
-	
-} success:^(AFHTTPRequestOperation *operation, id responseObject) {
-	
-
-	VisitDetails *currentVisit;
-	
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:appointmentID]) {
-			currentVisit = visit;
-		}
-	}
-	currentVisit.mapSnapUploadStatus = @"SUCCESS";
-	[currentVisit writeVisitDataToFile];
-
-	[resendDicData setValue:@"SUCCESS" forKey:@"STATUS"];
-	@synchronized(@"resendQueue") {
-		[_arrivalCompleteQueueItems removeObject:resendDicData];
-	}
-	
-} failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-	
-}];
-	
+-(void) transmitVisitReport:(NSData*)reportInfo {
+    
+    
 }
+-(void) sendVisitReport:(VisitDetails*) currentVisit {
+    
+    NSDate *rightNow = [NSDate date];
+    NSString *dateTimeString = [self getTimeShortString:rightNow];
+    currentVisit.dateTimeVisitReportSubmit = dateTimeString;
+    NSString *moodButtons  =[self createVisitReportMoodButtons:currentVisit];
 
--(void) resendImageUpload:(NSDictionary*)resendDicData {
-	
-	NSString *scriptName = @"https://leashtime.com/appointment-photo-upload.php";
-	AFHTTPRequestOperationManager *manager = [AFHTTPRequestOperationManager manager];
-	AFJSONResponseSerializer *serializer = [AFJSONResponseSerializer serializerWithReadingOptions:NSJSONReadingAllowFragments];
-	manager.responseSerializer = serializer;
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"application/json"];
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"text/html"];
-	manager.responseSerializer.acceptableContentTypes = [manager.responseSerializer.acceptableContentTypes
-														 setByAddingObject:@"text/plain"];
-	
-	NSDictionary *creds = [[NSUserDefaults standardUserDefaults]dictionaryRepresentation];
-	NSString *username = [creds objectForKey:@"username"];
-	NSString *pass = [creds objectForKey:@"password"];
-	NSString *appointmentID = [resendDicData objectForKey:@"apppointmentptr"];
-	NSDictionary *parameters = @{@"loginid":  username,@"password": pass,@"appointmentid" : [resendDicData objectForKey:@"appointmentptr"]};
-	//NSData *picData = [resendDicData objectForKey:@"imageData"];
-	[manager POST:scriptName
-	   parameters:parameters
-constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
-	
-	
-	[formData appendPartWithFileData:[resendDicData objectForKey:@"imageData"]
-								name:@"image"
-							fileName: [resendDicData objectForKey:@"imageFile"]
-							mimeType:@"image/png"];
-	
-} success:^(AFHTTPRequestOperation *operation, id responseObject) {
-	
-	VisitDetails *currentVisit;
-	
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:appointmentID]) {
-			currentVisit = visit;
-		}
-	}
-	[resendDicData setValue:@"SUCCESS" forKey:@"STATUS"];
-	currentVisit.mapSnapUploadStatus = @"SUCCESS";
-	[currentVisit writeVisitDataToFile];
-
-	@synchronized (@"resendQueue") {
-		[_arrivalCompleteQueueItems removeObject:resendDicData];
-		
-	}	
-	
-} failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-	
-	
-	
-}];
+    //LocationShareModel *locationShare = [LocationShareModel sharedModel];
+    //NSString *latSendNote = [NSString stringWithFormat:@"%f",locationShare.lastValidLocation.latitude];
+    //NSString *lonSendNote = [NSString stringWithFormat:@"%f",locationShare.lastValidLocation.longitude];
+    
+    NSString *consolidatedVisitNote = [NSString stringWithFormat:@"[VISIT: %@] ",dateTimeString];
+    if(![currentVisit.visitNoteBySitter isEqual:[NSNull null]] && [currentVisit.visitNoteBySitter length] > 0) {
+        consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:currentVisit.visitNoteBySitter];
+    }
+    consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:@"  [MGR NOTE] "];
+    if(![currentVisit.note isEqual:[NSNull null]] && [currentVisit.note length] > 0) {
+        consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:currentVisit.note];
+    }
+    NSError *error = NULL;
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"&"
+                                                                           options:NSRegularExpressionCaseInsensitive
+                                                                             error:&error];
+    /*NSUInteger numberOfMatches = [regex numberOfMatchesInString:consolidatedVisitNote
+                                                        options:0
+                                                          range:NSMakeRange(0, [consolidatedVisitNote length])];
+    */
+    NSString *modifiedNote = [regex stringByReplacingMatchesInString:consolidatedVisitNote
+                                                               options:0
+                                                                 range:NSMakeRange(0, [consolidatedVisitNote length])
+                                                          withTemplate:@"\%26"];
+        
+    
+    
+    [currentVisit setMarkArriveCompleteStatus:@"visitReport" andStatus:@"SUCCESS"];
+    
+    NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
+    NSString *username = [loginSetting objectForKey:@"username"];
+    NSString *pass = [loginSetting objectForKey:@"password"];
+    NSString *paramTemp = [NSString stringWithFormat:@"loginid=%@&password=%@&datetime=%@&appointmentptr=%@&note=%@&%@",
+                           username,pass,dateTimeString,currentVisit.appointmentid,modifiedNote,moodButtons];
+    
+    NSString *paramData = [paramTemp stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSData *requestBodyData = [paramData dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
+    
+    [self transmitVisitReport:requestBodyData];
+    
+    
 }
-
--(void)resendMarKArriveCompleteToServer:(NSMutableDictionary*)sendDictionary {
-	NSString *username = [sendDictionary objectForKey:@"loginid"];
-	NSString *pass = [sendDictionary objectForKey:@"password"];
-	NSString *dateStr = [sendDictionary objectForKey:@"datetime"];
-	NSString *theLatitude = [sendDictionary objectForKey:@"lat"];
-	NSString *theLongitude = [sendDictionary objectForKey:@"lon"];
-	NSString *theAccuracy = [sendDictionary objectForKey:@"accuracy"];
-	NSString *eventStr = [sendDictionary objectForKey:@"event"];
-	NSString *apptStr = [sendDictionary objectForKey:@"appointmentptr"];
-	NSString *postRequestString = [NSString stringWithFormat:@"loginid=%@&password=%@&datetime=%@&coords={\"appointmentptr\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"event\":\"%@\",\"accuracy\":\"%@\"}",username,pass,dateStr,apptStr,theLatitude,theLongitude,eventStr,theAccuracy];
-	
-	NSData *postData = [postRequestString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-	NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[postData length]];
-	NSURL *urlLogin = [NSURL URLWithString:postRequestString];
-	
-	VisitDetails *currentVisit;
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:apptStr]) {
-			currentVisit = visit;
-		}
-	}
-	
-	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-	[request setURL:[NSURL URLWithString:@"https://leashtime.com/native-visit-action.php"]];
-	[request setHTTPMethod:@"POST"];
-	[request setValue:postLength forHTTPHeaderField:@"Content-Length"];
-	[request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-	[request setTimeoutInterval:20.0];
-	[request setHTTPBody:postData];
-	
-	if(_isReachable) {
-		NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-																 delegate:nil
-															delegateQueue:nil];
-		NSURLSessionDataTask *postDataTask = [urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data,
-																										 NSURLResponse * _Nullable responseDic,
-																										 NSError * _Nullable error) {
-			if(error == nil) {
-				
-				NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
-																			options:
-											 NSJSONReadingMutableContainers|
-											 NSJSONReadingAllowFragments|
-											 NSJSONWritingPrettyPrinted|
-											 NSJSONReadingMutableLeaves
-																			  error:&error];
-				
-				//NSLog(@"Response dic: %@",responseDic);
-
-			
-				if([eventStr isEqualToString:@"arrived"]) {
-					currentVisit.currentArriveVisitStatus = @"SUCCESS";
-				}
-				if([eventStr isEqualToString:@"completed"]) {
-					currentVisit.currentCompleteVisitStatus = @"SUCCESS";
-				}
-				[currentVisit writeVisitDataToFile];
-				[sendDictionary setObject:@"SUCCESS" forKey:@"STATUS"];
-				@synchronized (@"resendQueue") {
-					[_arrivalCompleteQueueItems removeObject:sendDictionary];
-					
-				}
-			
-				dispatch_async(dispatch_get_main_queue(), ^{
-					[[NSNotificationCenter defaultCenter]
-					 postNotificationName:@"resendArriveCompleteSuccess"
-					 object:self
-					 userInfo:sendDictionary];
-					
-				});
-			}
-		}];
-
-		[postDataTask resume];
-		[[NSURLCache sharedURLCache] removeAllCachedResponses];
-		[urlSession finishTasksAndInvalidate];
-		
-	}
-	
-}
-
--(void) resendVisitReport:(NSMutableDictionary*)sendDictionary {
-
-	VisitDetails *currentVisit;
-	for (VisitDetails *visit in _visitData) {
-		if ([visit.appointmentid isEqualToString:[sendDictionary objectForKey:@"appointmentptr"]]) {
-			currentVisit = visit;
-		}
-	}
-	NSString *dateTimeString = currentVisit.dateTimeMarkComplete;
-	NSString *appointmentID = currentVisit.appointmentid;
-	NSString *consolidatedVisitNote = [NSString stringWithFormat:@"[VISIT: %@] ",dateTimeString];
-	
-	
-	if(![currentVisit.visitNoteBySitter isEqual:[NSNull null]] && [currentVisit.visitNoteBySitter length] > 0) {
-		consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:currentVisit.visitNoteBySitter];
-	}
-	consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:@"  [MGR NOTE] "];
-	if(![currentVisit.note isEqual:[NSNull null]] && [currentVisit.note length] > 0) {
-		//NSString *tempVisitNote= [consolidatedVisitNote stringByAppendingString:currentVisit.note];
-		consolidatedVisitNote = [consolidatedVisitNote stringByAppendingString:currentVisit.note];//[tempVisitNote stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	}
-	
-	
-	NSString *moodButton = @"buttons={";
-	if(currentVisit.didPee) {
-		NSString *peeMood = @"\"pee\":\"yes\"";
-		moodButton = [moodButton stringByAppendingString:peeMood];
-	} else if (!currentVisit.didPee) {
-		NSString *peeMood = @"\"pee\":\"no\"";
-		moodButton = [moodButton stringByAppendingString:peeMood];
-	}
-	if(currentVisit.didPoo) {
-		moodButton = [moodButton stringByAppendingString:@",\"poo\":\"yes\""];
-	} else if (!currentVisit.didPoo) {
-		moodButton = [moodButton stringByAppendingString:@",\"poo\":\"no\""];
-	}
-	if(currentVisit.didPlay) {
-		moodButton = [moodButton stringByAppendingString:@",\"play\":\"yes\""];
-	} else if (!currentVisit.didPlay) {
-		moodButton = [moodButton stringByAppendingString:@",\"play\":\"no\""];
-	}
-	if(currentVisit.wasHappy) {
-		moodButton = [moodButton stringByAppendingString:@",\"happy\":\"yes\""];
-	} else if (!currentVisit.wasHappy) {
-		moodButton = [moodButton stringByAppendingString:@",\"happy\":\"no\""];
-	}
-	if(currentVisit.wasHungry) {
-		moodButton = [moodButton stringByAppendingString:@",\"hungry\":\"yes\""];
-	} else if (!currentVisit.wasHungry) {
-		moodButton = [moodButton stringByAppendingString:@",\"hungry\":\"no\""];
-	}
-	if(currentVisit.wasAngry) {
-		moodButton = [moodButton stringByAppendingString:@",\"angry\":\"yes\""];
-	} else if (!currentVisit.didPee) {
-		moodButton = [moodButton stringByAppendingString:@",\"angry\":\"no\""];
-	}
-	if(currentVisit.wasShy) {
-		moodButton = [moodButton stringByAppendingString:@",\"shy\":\"yes\""];
-	} else if (!currentVisit.wasShy) {
-		moodButton = [moodButton stringByAppendingString:@",\"shy\":\"no\""];
-	}
-	if(currentVisit.wasSad) {
-		moodButton = [moodButton stringByAppendingString:@",\"sad\":\"yes\""];
-	} else if (!currentVisit.wasSad) {
-		moodButton = [moodButton stringByAppendingString:@",\"sad\":\"no\""];
-	}
-	if(currentVisit.wasSick) {
-		moodButton = [moodButton stringByAppendingString:@",\"sick\":\"yes\""];
-	} else if (!currentVisit.wasSick) {
-		moodButton = [moodButton stringByAppendingString:@",\"sick\":\"no\""];
-	}
-	if(currentVisit.wasCat) {
-		moodButton = [moodButton stringByAppendingString:@",\"cat\":\"yes\""];
-	} else if (!currentVisit.wasShy) {
-		moodButton = [moodButton stringByAppendingString:@",\"cat\":\"no\""];
-	}
-	if(currentVisit.didScoopLitter) {
-		moodButton = [moodButton stringByAppendingString:@",\"litter\":\"yes\""];
-	} else if (!currentVisit.didScoopLitter) {
-		moodButton = [moodButton stringByAppendingString:@",\"litter\":\"no\""];
-	}
-	NSString *closeMood = @"}";
-	moodButton = [moodButton stringByAppendingString:closeMood];
-
-	NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
-	NSString *username = [loginSetting objectForKey:@"username"];
-	NSString *pass = [loginSetting objectForKey:@"password"];
-	NSString *paramTemp = [NSString stringWithFormat:@"loginid=%@&password=%@&datetime=%@&appointmentptr=%@&note=%@&%@",
-						   username,pass,dateTimeString,appointmentID,consolidatedVisitNote,moodButton];
-	NSString *parameterString = paramTemp; // [sendDictionary objectForKey:@"parameterString"];
-	
-	NSString *parameterData = [parameterString stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	NSData *requestBodyData = [parameterData dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-	NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[requestBodyData length]];
-	NSURL *urlLogin = [NSURL URLWithString:parameterData];
-	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-	
-	[request setURL:[NSURL URLWithString:@"https://leashtime.com/native-visit-update.php"]];
-	[request setHTTPMethod:@"POST"];
-	[request setValue:postLength forHTTPHeaderField:@"Content-Length"];
-	[request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-	[request setTimeoutInterval:20.0];
-	[request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
-	[request setHTTPBody:requestBodyData];
-	
-	NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-															 delegate:nil
-														delegateQueue:nil];
-	
-	NSURLSessionDataTask *postDataTask = 
-	[urlSession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data,NSURLResponse * _Nullable responseDic,NSError * _Nullable error) {
-														   if(error == nil) {
-															   
-															   NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data 
-																														   options:NSJSONReadingMutableContainers| NSJSONReadingAllowFragments| NSJSONWritingPrettyPrinted| NSJSONReadingMutableLeaves  
-																															 error:&error];
-															   
-															   
-															   //NSLog(@"Response dic: %@",responseDic);
-															   
-															   currentVisit.visitReportUploadStatus = @"SUCCESS";
-															   [currentVisit writeVisitDataToFile];
-															   [sendDictionary setObject:@"SUCCESS" forKey:@"STATUS"];
-															   [sendDictionary setObject:@"REPORT" forKey:@"TYPE"];
-															   
-														   } 
-													   }];
-	[postDataTask resume];
-	[[NSURLCache sharedURLCache] removeAllCachedResponses];
-	[urlSession finishTasksAndInvalidate];
-}
-
 -(void)sendVisitNote:(NSString*)note
                moods:(NSString*)moodButtons
             latitude:(NSString *)currentLatitude
@@ -807,136 +397,354 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
     forAppointmentID:(NSString *)appointmentID
  {
 
-	 VisitDetails *currentVisit;
-	 
-	 for (VisitDetails *visit in _visitData) {
-		 if ([visit.appointmentid isEqualToString:appointmentID]) {
-			 currentVisit = visit;
-		 }
-	 }
-	
-	 if( _isReachable) {
-		 NSDate *rightNow = [NSDate date];
-		 NSDateFormatter *dateFormat = [NSDateFormatter new];
-		 [dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-		 NSString *dateTimeString = [dateFormat stringFromDate:rightNow];
-		 NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
-		 NSString *username = [loginSetting objectForKey:@"username"];
-		 NSString *pass = [loginSetting objectForKey:@"password"];
-		 NSString *paramTemp = [NSString stringWithFormat:@"loginid=%@&password=%@&datetime=%@&appointmentptr=%@&note=%@&%@",
-								username,pass,dateTimeString,appointmentID,note,moodButtons];
-		 
-		 NSString *parameterData = [paramTemp stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-		 NSData *requestBodyData = [parameterData dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-		 NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[requestBodyData length]];
-		 NSURL *urlLogin = [NSURL URLWithString:parameterData];
-		 
-		 NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-		 
-		 [request setURL:[NSURL URLWithString:@"https://leashtime.com/native-visit-update.php"]];
-		 [request setHTTPMethod:@"POST"];
-		 [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
-		 [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-		 [request setTimeoutInterval:20.0];
-		 [request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
-		 [request setHTTPBody:requestBodyData];
-		 
-		 mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-												   delegate:self
-											  delegateQueue:[NSOperationQueue mainQueue]];
-		 
-		 NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
-														   completionHandler:^(NSData * _Nullable data,
-																			   NSURLResponse * _Nullable responseDic, 
-																			   NSError * _Nullable error) {
-															   
-															   
-															   if(error == nil) {
-																   NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data 
-																															   options:NSJSONReadingMutableContainers|
-																								NSJSONReadingAllowFragments|
-																								NSJSONWritingPrettyPrinted|
-																								NSJSONReadingMutableLeaves
-																																 error:&error];
-																   
-																   currentVisit.visitReportUploadStatus = @"SUCCESS";
-																   [currentVisit writeVisitDataToFile];
-																   
-																   //NSLog(@"Response dic: %@",responseDic);
+     VisitDetails *currentVisit;
 
-
-																   
-															   } else {
-																   
-																   currentVisit.visitReportUploadStatus = @"FAIL";
-																   [currentVisit writeVisitDataToFile];
-																   NSMutableDictionary *reportResend = [[NSMutableDictionary alloc]init];
-																   [reportResend setObject:@"REPORT" forKey:@"TYPE"];
-																   [reportResend setObject:@"FAIL-NETWORK RESPONSE" forKey:@"STATUS"];
-																   [reportResend setObject:appointmentID forKey:@"appointmentptr"];
-																   [_arrivalCompleteQueueItems addObject:reportResend];		
-															   }
-															   
-														   }];
-		 
-		 [postDataTask resume];
-		 [[NSURLCache sharedURLCache] removeAllCachedResponses];
-		 [mySession finishTasksAndInvalidate];
-		 
-	 } else {
-		 NSMutableDictionary *reportResend = [[NSMutableDictionary alloc]init];
-		 [reportResend setObject:@"REPORT" forKey:@"TYPE"];
-		 [reportResend setObject:@"FAIL-NETWORK RESPONSE" forKey:@"STATUS"];
-		 [reportResend setObject:appointmentID forKey:@"appointmentptr"];
-		 [_arrivalCompleteQueueItems addObject:reportResend];		
-	 }
+     for (VisitDetails *visit in _visitData) {
+         if ([visit.appointmentid isEqualToString:appointmentID]) {
+             currentVisit = visit;
+         }
+     }
+     
+     
+     NSError *error = NULL;
+     NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"&"
+                                                                            options:NSRegularExpressionCaseInsensitive
+                                                                              error:&error];
+     /*NSUInteger numberOfMatches = [regex numberOfMatchesInString:note
+                                                         options:0
+                                                           range:NSMakeRange(0, [note length])];
+     */
+     NSString *modifiedNote = [regex stringByReplacingMatchesInString:note
+                                                                options:0
+                                                                  range:NSMakeRange(0, [note length])
+                                                           withTemplate:@"\%26"];
+         
+     if( _isReachable) {
+         NSDate *rightNow = [NSDate date];
+         NSString *dateTimeString = [dateTimeRequestResponseFormat stringFromDate:rightNow];
+         NSUserDefaults *loginSetting = [NSUserDefaults standardUserDefaults];
+         NSString *username = [loginSetting objectForKey:@"username"];
+         NSString *pass = [loginSetting objectForKey:@"password"];
+         NSString *paramTemp = [NSString stringWithFormat:@"loginid=%@&password=%@&datetime=%@&appointmentptr=%@&note=%@&%@",
+                                username,pass,dateTimeString,appointmentID,modifiedNote,moodButtons];
+         
+         NSString *paramData = [paramTemp stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+         NSData *requestBodyData = [paramData dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
+         NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[requestBodyData length]];
+         NSURL *urlLogin = [NSURL URLWithString:@"https://leashtime.com/native-visit-update.php"];
+         
+         NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
+         [request setHTTPMethod:@"POST"];
+         [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
+         [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+         [request setTimeoutInterval:20.0];
+         [request setValue:userAgentLT forHTTPHeaderField:@"User-Agent"];
+         [request setHTTPBody:requestBodyData];
+         
+         //NSURLSessionConfiguration *urlConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
+         //NSURLSession *urlSession = [NSURLSession sessionWithConfiguration:urlConfig];
+         
+         mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
+                                                    delegate:self
+                                               delegateQueue:nil];
+                      
+         NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
+                                                           completionHandler:^(NSData * _Nullable data,
+                                                                               NSURLResponse * _Nullable responseDic,
+                                                                               NSError * _Nullable error) {
+                                                               
+                                                               
+                                                               if(error == nil) {
+                                                                   NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
+                                                                                                                               options:NSJSONReadingMutableContainers|
+                                                                                                NSJSONReadingAllowFragments|
+                                                                                                NSJSONWritingPrettyPrinted|
+                                                                                                NSJSONReadingMutableLeaves
+                                                                                                                                 error:&error];
+                                                                        
+                                                                   if ([responseDic isEqual:[NSNull null]]) {
+                                                                       NSLog(@"No data in the response");
+                                                                       
+                                                                   }
+                                                                   dispatch_queue_t myWrite = dispatch_queue_create("MyWrite", NULL);
+                                                                   dispatch_async(myWrite, ^ {
+                                                                       [currentVisit writeVisitDataToFile];
+                                                                       [[NSNotificationCenter defaultCenter]postNotificationName:@"sentVisitReport"
+                                                                                                                          object:self];
+                                                                   });
+                                                                   
+                                                                   [currentVisit createMapSnapshot];
+                                                               
+                                                               } else {
+                                                                   [currentVisit setMarkArriveCompleteStatus:@"visitReport" andStatus:@"FAIL"];
+                                                                   dispatch_queue_t myWrite = dispatch_queue_create("MyWrite", NULL);
+                                                                   dispatch_async(myWrite, ^ {
+                                                                       [currentVisit writeVisitDataToFile];
+                                                                       [[NSNotificationCenter defaultCenter]postNotificationName:@"sentVisitReport"
+                                                                                                                          object:self];
+                                                                   });
+                                                                }
+                                                           }];
+         
+         [postDataTask resume];
+         [[NSURLCache sharedURLCache] removeAllCachedResponses];
+         [mySession finishTasksAndInvalidate];
+         
+     } else {
+         
+         currentVisit.visitReportUploadStatus = @"FAIL";
+         dispatch_queue_t myWrite = dispatch_queue_create("MyWrite", NULL);
+         dispatch_async(myWrite, ^{
+             [currentVisit writeVisitDataToFile];
+         });
+         
+     }
 }
 
--(void)changeResendStatus:(NSNotification*) notification {
-	
-	NSMutableDictionary *visitResendDic = (NSMutableDictionary*)notification.userInfo;
-	int removeIndex = -1;
-	
-	for (int i = 0; i < [_arrivalCompleteQueueItems count]; i++) {
-		NSMutableDictionary *statusDic = [_arrivalCompleteQueueItems objectAtIndex:i];
-		
-		if([[visitResendDic objectForKey:@"appointmentptr"]isEqualToString:[statusDic objectForKey:@"appointmentptr"]]) {
-			removeIndex = i;
-			statusDic = nil;
-		}
-	}
-	
-	if (removeIndex >= 0) {
-		@synchronized (@"resendQueue") {
-			[_arrivalCompleteQueueItems removeObjectAtIndex:removeIndex];
-		}
-	}
-}
 
--(void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
-	
-	[session invalidateAndCancel];
-	session = nil;
-}
--(void)URLSession:(NSURLSession *)session didBecomeInvalidWithError:(NSError *)error {
-	
-	[session invalidateAndCancel];
-	session = nil;
-}
 
--(void)markVisitUnarrive:(NSString*)visitID {
-	
-    BOOL foundVisitInQueue = NO;
-	
-    for (int i = 0; i < [_arrivalCompleteQueueItems count]; i++) {
-	    
-        NSMutableDictionary *arriveCompleteQueueDic = [_arrivalCompleteQueueItems objectAtIndex:i];
-        if([[arriveCompleteQueueDic objectForKey:@"appointmentptr"] isEqualToString:visitID]) {
-            foundVisitInQueue = YES;
-            [self unarriveNetwork:arriveCompleteQueueDic];
-        }
+-(void) networkRequest:(NSDate*)forDate
+                toDate:(NSDate*)toDate
+            pollUpdate:(NSString*)pollUpdate {
+    
+    sessionConfiguration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    sessionConfiguration.URLCache = [[NSURLCache alloc]initWithMemoryCapacity:0 diskCapacity:0 diskPath:nil];
+    NSString *userName;
+    NSString *password;
+    
+    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+    
+    if ([loginSettings objectForKey:@"username"] != NULL) {
+        userName = [loginSettings objectForKey:@"username"];
+    }
+    if ([loginSettings objectForKey:@"password"]) {
+        password = [loginSettings objectForKey:@"password"];
     }
     
+    NSString *urlLoginStr = [userName stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *urlPassStr = [password stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    
+    NSString *requestString;
+    NSDate *yesterday = [forDate dateBySubtractingDays:numFutureDaysVisitInformation];
+    NSString *date_String=[formatFutureDate stringFromDate:yesterday];
+    NSString *endDateString = [self stringForNextTwoWeeks:numFutureDaysVisitInformation fromDate:forDate];
+        
+    //NSDateFormatter * = [[NSDateFormatter alloc]init];
+    
+    if(!_firstLogin) {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&firstLogin=1"
+                         ,urlLoginStr,urlPassStr,date_String,endDateString];
+    } else {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@",urlLoginStr,urlPassStr,date_String,endDateString];
+    }
+    
+    NSURL *urlLogin = [NSURL URLWithString:requestString];
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
+    [request setTimeoutInterval:10.0];
+    [request setValue:userAgentLT forHTTPHeaderField:@"User-Agent"];
+
+    mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
+                                              delegate:self
+                                         delegateQueue:[NSOperationQueue mainQueue]];
+    
+    //mySession = [NSURLSession sharedSession];
+    
+    NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
+                                                      completionHandler:^(NSData * _Nullable data,
+                                                                          NSURLResponse * _Nullable responseDic,
+                                                                          NSError * _Nullable error) {
+                                                        
+                                                          NSDictionary *errorDic = [error userInfo];
+                                                          
+                                                          NSString *errorCodeResponse = [self checkErrorCodes:data];
+        
+                                                          if(errorDic == NULL || error == NULL) {
+                                                              if ([errorCodeResponse isEqualToString:@"OK"]) {
+                                                                  NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
+                                                                                                                              options:
+                                                                                               NSJSONReadingMutableContainers|
+                                                                                               NSJSONReadingAllowFragments|
+                                                                                               NSJSONWritingPrettyPrinted|
+                                                                                               NSJSONReadingMutableLeaves
+                                                                                                                                error:&error];
+                                                                  
+                                                                  if (responseDic != NULL) {
+                                                                      //NSLog(@"POLL UPDATE NETWORK REQUEST, %@", responseDic);
+                                                                      [self parseDataResponsePolling:responseDic];
+                                                                      
+                                                                  }  else {
+                                                                      //_pollingFailReasonCode = @"NODATA";
+                                                                      dispatch_async(dispatch_get_main_queue(), ^{
+                                                                          [[NSNotificationCenter defaultCenter]
+                                                                           postNotificationName:pollingFailed
+                                                                           object:self];
+                                                                      });
+                                                                  }
+                                                              }
+                                                              
+                                                              else if ([errorCodeResponse isEqualToString:@"T"]) {
+                                                                  dispatch_async(dispatch_get_main_queue(), ^{
+                                                                      [[NSNotificationCenter defaultCenter]
+                                                                       postNotificationName:@"tempPassword"
+                                                                       object:self];
+                                                                  });
+                                                              }
+                                                              
+                                                              else if ([errorCodeResponse isEqualToString:@"P"]) {
+                                                                  dispatch_async(dispatch_get_main_queue(), ^{
+                                                                      [[NSNotificationCenter defaultCenter]
+                                                                       postNotificationName:pollingFailed
+                                                                       object:self];
+                                                                  });
+                                                              }
+                                                          } else {
+                                                              dispatch_async(dispatch_get_main_queue(), ^{
+                                                                  [[NSNotificationCenter defaultCenter]
+                                                                   postNotificationName:pollingFailed
+                                                                   object:self];
+                                                              });
+                                                          }
+                                                      }];
+    
+    [postDataTask resume];
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    //[mySession finishTasksAndInvalidate];
+}
+
+
+
+/*-(void) networkRequest:(NSDate *)forDate toDate:(NSDate *)toDate isPolling:(BOOL)pollRequest {
+    
+    
+}*/
+-(void) networkRequest:(NSDate*)forDate
+                toDate:(NSDate*)toDate {
+    
+    //NSString *loginString = [self createLoginString:forDate tilEndDate:toDate];
+    
+    NSString *userName;
+    NSString *password;
+
+    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+    
+    if ([loginSettings objectForKey:@"username"] != NULL) {
+        userName = [loginSettings objectForKey:@"username"];
+    }
+    if ([loginSettings objectForKey:@"password"]) {
+        password = [loginSettings objectForKey:@"password"];
+    }
+    
+    NSString *urlLoginStr = [userName stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *urlPassStr = [password stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *dateBegin = [formatFutureDate stringFromDate:forDate];
+    NSString *dateEnd = [formatFutureDate stringFromDate:toDate];
+
+    NSString *urlString = @"https://leashtime.com/native-prov-multiday-list.php";
+    NSDictionary *parameters = @{@"loginid":urlLoginStr,
+                                 @"password":urlPassStr,
+                                 @"start":dateBegin,
+                                 @"end":dateEnd,
+                                 @"firstLogin":@"1",
+                                 @"clientdocs":@"complete"};
+    
+    AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
+    manager.responseSerializer = [AFJSONResponseSerializer serializerWithReadingOptions:NSJSONReadingAllowFragments|
+                                  NSJSONReadingMutableLeaves|
+                                  NSJSONReadingMutableContainers];
+    
+    [manager GET:urlString
+      parameters:parameters
+         headers:nil
+        progress:^(NSProgress * _Nonnull downloadProgress) {
+        
+    } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        
+        NSMutableDictionary *responseData =[[NSMutableDictionary alloc]init];
+        
+        if ([responseObject isKindOfClass:[NSDictionary class]]) {
+            responseData  = (NSMutableDictionary*)responseObject;
+            [[VisitsAndTracking sharedInstance]parseDataResponseMulti:responseData];
+            [[VisitsAndTracking sharedInstance]updateCoordinateData];
+        }
+
+        
+        if (![VisitsAndTracking sharedInstance].firstLogin) {
+            [[VisitsAndTracking sharedInstance]loginSuccessBlock];
+        }
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        
+        
+    }];
+    /*
+    if(!_firstLogin) {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&firstLogin=1&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
+    } else {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
+    }
+
+    
+
+    NSURL *urlLogin = [NSURL URLWithString:loginString];
+    
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc
+     ]initWithURL:urlLogin];
+    [request setTimeoutInterval:40.0];
+    [request setValue:userAgentLT forHTTPHeaderField:@"User-Agent"];
+
+    //mySession = [NSURLSession sharedSession];
+
+    mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
+                                              delegate:self
+                                         delegateQueue:[NSOperationQueue mainQueue]];
+    
+    NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
+                                                      completionHandler:^(NSData * _Nullable data,
+                                                                          NSURLResponse * _Nullable responseDic,
+                                                                          NSError * _Nullable error) {
+                                                                  
+       
+                                                          NSString *errorCodeResponse = [[VisitsAndTracking sharedInstance] checkErrorCodes:data];
+                                                          
+                                                          if(error == nil) {
+                                                              if (responseDic != NULL) {
+                                                                  if ([errorCodeResponse isEqualToString:@"OK"]) {
+                                                                      NSDictionary *responseJSON = [NSJSONSerialization JSONObjectWithData:data
+                                                                                                                                   options:
+                                                                                                    NSJSONReadingMutableContainers|
+                                                                                                    NSJSONReadingAllowFragments|
+                                                                                                    NSJSONReadingMutableLeaves
+                                                                                                                                     error:&error];
+                 
+                                                                      [[VisitsAndTracking sharedInstance]parseDataResponseMulti:responseJSON];
+                                                                      [[VisitsAndTracking sharedInstance]updateCoordinateData];
+                                                                      
+                                                                      if (![VisitsAndTracking sharedInstance].firstLogin) {
+                                                                          [[VisitsAndTracking sharedInstance]loginSuccessBlock];
+                                                                      }
+                                                                  }  else {
+                                                                      [[VisitsAndTracking sharedInstance] pollingFailedBroadcast];
+                                                                  }
+                                                              }
+                                                              else if ([errorCodeResponse isEqualToString:@"T"]) {
+                                                                  [[VisitsAndTracking sharedInstance] pollingSetTempPwd];
+                                                              }
+                                                              
+                                                          } else {
+                                                              [[VisitsAndTracking sharedInstance] pollingFailedBroadcast];
+                                                          }
+                                                      }];
+    
+    [postDataTask resume];
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    //[mySession finishTasksAndInvalidate];*/
+    
+    
+    
+}
+
+-(void) markVisitUnarrive:(NSString*)visitID {
+    
+    BOOL foundVisitInQueue = NO;
     if(!foundVisitInQueue) {
         
         NSMutableDictionary *arriveCompleteQueueDic = [[NSMutableDictionary alloc]init];
@@ -952,12 +760,11 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
             password = [loginSettings objectForKey:@"password"];
         }
         
-        NSDateFormatter *formatterWindow = [[NSDateFormatter alloc] init];
-        [formatterWindow setDateFormat:@"MM/dd/yyyy HH:mm:ss"];
+        NSDateFormatter *formatterWindowUnarrive = [[NSDateFormatter alloc] init];
+        [formatterWindowUnarrive setDateFormat:@"mm/dd/yyyy hh:mm:ss"];
         NSDate *rightNow2 = [NSDate date];
-        NSString *dateString2 = [formatterWindow stringFromDate:rightNow2];
-
-        
+        NSString *dateString2 = [formatterWindowUnarrive stringFromDate:rightNow2];
+         
         [arriveCompleteQueueDic setObject:userName forKey:@"loginid"];
         [arriveCompleteQueueDic setObject:password forKey:@"password"];
         [arriveCompleteQueueDic setObject:dateString2 forKey:@"date"];
@@ -966,11 +773,13 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
         [arriveCompleteQueueDic setObject:@"none" forKey:@"accuracy"];
         [arriveCompleteQueueDic setObject:visitID forKey:@"appointmentptr"];
         [self unarriveNetwork:arriveCompleteQueueDic];
-
+        
     }
 }
 
--(void)unarriveNetwork:(NSDictionary*)sendDictionary {
+
+
+-(void) unarriveNetwork:(NSDictionary*)sendDictionary {
     NSString *username = [sendDictionary objectForKey:@"loginid"];
     NSString *pass = [sendDictionary objectForKey:@"password"];
     NSString *dateStr = [sendDictionary objectForKey:@"datetime"];
@@ -986,7 +795,9 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
     NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[postData length]];
     NSURL *urlLogin = [NSURL URLWithString:postRequestString];
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-    [request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
+    //[request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
+    [request setValue:userAgentLT forHTTPHeaderField:@"User-Agent"];
+
     [request setURL:[NSURL URLWithString:@"https://leashtime.com/native-visit-action.php"]];
     [request setHTTPMethod:@"POST"];
     [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
@@ -1004,9 +815,8 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
                                                                                                      NSError * _Nullable error) {
         
         
-        NSString *errorCodeResponse = [self checkErrorCodes:data];        
+        NSString *errorCodeResponse = [self checkErrorCodes:data];
         if(error == nil) {
-            [_lastRequest addObject:@"OK"];
             if ([errorCodeResponse isEqualToString:@"OK"]) {
                 NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
                                                                             options:
@@ -1015,10 +825,12 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
                                              NSJSONWritingPrettyPrinted|
                                              NSJSONReadingMutableLeaves
                                                                               error:&error];
-				//NSLog(@"Response dic: %@",responseDic);
+                if ([responseDic isEqual:[NSNull null]]) {
+                    NSLog(@"Response dic null: %@",responseDic);
+                }
             }
         }
-	}];
+    }];
     
     
     
@@ -1027,45 +839,895 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
     [mySession finishTasksAndInvalidate];
 }
 
--(void)logoutCleanup {
-	
-	for(int i = 0; i < [_visitData count]; i++) {
-		VisitDetails *visit = [_visitData objectAtIndex:i];
-		visit = nil;
-	}
-	
-	for(int i = 0; i < [todaysVisits count]; i++) {
-		NSMutableDictionary *visit = [todaysVisits objectAtIndex:i];
-		visit = nil;
-	}
-	
-	for(int i = 0; i < [yesterdayVisits count]; i++) {
-		NSMutableDictionary *visit = [yesterdayVisits objectAtIndex:i];
-		visit = nil;
-	}
-	for(int i = 0; i < [tomorrowVisits count]; i++) {
-		NSMutableDictionary *visit = [tomorrowVisits objectAtIndex:i];
-		visit = nil;
-	}
-	
-	for(NSMutableDictionary *badRequestDic in _arrivalCompleteQueueItems) {
-		[badRequestDic removeAllObjects];
-	}
-	[_arrivalCompleteQueueItems removeAllObjects];
-	_arrivalCompleteQueueItems = nil;
-	
+-(void)changeTempPassword:(NSString*)currentTemp
+                  loginID:(NSString*)loginID
+                  newPass:(NSString*)newPass {
+    
+    
+    NSString *urlLoginStr = [loginID stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *urlPassStr = [currentTemp stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *urlPassStrNew = [newPass stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    
+    NSString *requestString = [NSString stringWithFormat:@"https://leashtime.com/native-change-pass.php?loginid=%@&password=%@&newpassword=%@",urlLoginStr,urlPassStr,urlPassStrNew];
+    
+    NSURL *urlLogin = [NSURL URLWithString:requestString];
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
+    mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
+                                              delegate:self
+                                         delegateQueue:[NSOperationQueue mainQueue]];
+    
+    NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data,
+                                                                                                    NSURLResponse * _Nullable responseDic,
+                                                                                                    NSError * _Nullable error) {
+        [[NSNotificationCenter defaultCenter]postNotificationName:@"loginNewPass" object:nil];
+    }];
+    
+    [postDataTask resume];
+    
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    
+    [mySession finishTasksAndInvalidate];
+    
+}
+
+
+-(NSString*) createLoginString:(NSDate*)startDate tilEndDate:(NSDate*)endDate {
+    
+    NSString *userName;
+    NSString *password;
+
+    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
+    
+    if ([loginSettings objectForKey:@"username"] != NULL) {
+        userName = [loginSettings objectForKey:@"username"];
+    }
+    if ([loginSettings objectForKey:@"password"]) {
+        password = [loginSettings objectForKey:@"password"];
+    }
+    
+    NSString *urlLoginStr = [userName stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *urlPassStr = [password stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    NSString *requestString;
+
+    
+    NSString *dateBegin = [formatFutureDate stringFromDate:startDate];
+    NSString *dateEnd = [formatFutureDate stringFromDate:endDate];
+
+    if(!_firstLogin) {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&firstLogin=1&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
+    } else {
+        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
+    }
+    
+    return requestString;
+}
+-(void) URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    
+    [session invalidateAndCancel];
+    session = nil;
+}
+-(void) URLSession:(NSURLSession *)session didBecomeInvalidWithError:(NSError *)error {
+    
+    [session invalidateAndCancel];
+    session = nil;
+}
+-(void) loginSuccessBlock {
+    NSLog(@"LOGIN SUCCESS BLOCK");
+    self.firstLogin = YES;
+    [[NSNotificationCenter defaultCenter]postNotificationName:@"loginSuccess" object:NULL];
+    
+}
+-(void) pollingFailedBroadcast {
+    NSString *_tmpPollingFailed = pollingFailed;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter]postNotificationName:_tmpPollingFailed object:nil];
+    });
+    
+}
+-(void) pollingSetTempPwd {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter]
+         postNotificationName:@"tempPassword"
+         object:self];
+    });
+}
+
++(VisitsAndTracking *)sharedInstance {
+    
+    static VisitsAndTracking *_sharedInstance = nil;
+    static dispatch_once_t oncePredicate;
+    dispatch_once(&oncePredicate, ^{
+        _sharedInstance =[[VisitsAndTracking alloc]init];
+    });
+    return _sharedInstance;
+}
+
+-(id) init {
+    self = [super init];
+    if (self) {
+        
+        //_userAgentLT = @"LEASHTIME V4.3/AUGUST 2019/IOS 12.4";
+        
+        _onSequence = @"000";
+        _onSequenceArray = [[NSMutableArray alloc]init];
+        _onWhichVisitID = NULL;
+		_todayDate = [NSDate date];
+        _showingWhichDate = _todayDate;        
+        _clientData = [[NSMutableArray alloc]init];
+        _visitData = [[NSMutableArray alloc]init];
+        
+        
+        userAgentLT = @"LEASHTIME V5.0/JUNE 2021/IOS 13.X.X.";
+        coordinatesForVisits = [[NSMutableDictionary alloc]init];
+        numFutureDaysVisitInformation = 20;
+		yesterdayVisits = [[NSMutableArray alloc]init];
+		tomorrowVisits = [[NSMutableArray alloc]init];
+        todaysVisits = [[NSMutableArray alloc]init];
+         
+        [self setupDateFormatters];
+        [self setUpReachability];
+        [self readSettings];
+
+        
+    }
+    return self;
+}
+
+
+//**************************************************************************
+//*                                                                        *
+//*           PROCESS / PARSE NETWORK REESPONSES                           *
+//*                                                                        *
+//**************************************************************************
+-(void) parseDataResponsePolling:(NSDictionary *)responseDic {
+    //NSLog(@"[VT] PARSE RESPONSE FROM POLLING UPDATE");
+    NSArray *visitsArray = [responseDic objectForKey:@"visits"];
+    NSDictionary *clientsDic = [responseDic objectForKey:@"clients"];
+    
+    if ([clientsDic count] > 0) {
+        NSArray *clientKeys = [clientsDic allKeys];
+        NSMutableDictionary *clientsDicNew = [[NSMutableDictionary alloc]init];
+        for (NSString *keyMatch in clientKeys) {
+            NSDictionary *clientDicNew = [clientsDic objectForKey:keyMatch];
+            NSString *matchClientId = [clientDicNew objectForKey:@"clientid"];
+            
+            BOOL inCurrentClientList = FALSE;
+            
+            for (DataClient *client in _clientData) {
+                if ([client.clientID isEqualToString:matchClientId]) {
+                    inCurrentClientList = TRUE;
+                }
+            }
+            
+            if (!inCurrentClientList) {
+                NSDictionary *addClientDic = [clientsDic objectForKey:keyMatch];
+                [clientsDicNew setObject:addClientDic forKey:keyMatch];
+            }
+        }
+        if ([clientsDicNew count] > 0) {
+            [self createClientData:clientsDicNew];
+        }
+
+        
+        for(int i = 0; i < [yesterdayVisits count]; i++) {
+            NSDictionary *visit = [yesterdayVisits objectAtIndex:i];
+            visit = nil;
+        }
+        [yesterdayVisits removeAllObjects];
+        
+        for(int i = 0; i < [tomorrowVisits count]; i++) {
+            NSDictionary *visit = [tomorrowVisits objectAtIndex:i];
+            visit = nil;
+        }
+        [tomorrowVisits removeAllObjects];
+        
+        
+        if([[responseDic objectForKey:@"visits"]isKindOfClass:[NSArray class]] &&
+           [[responseDic objectForKey:@"visits"] count] > 0) {
+            
+            for(NSDictionary *visitDic in visitsArray) {
+                NSDate *evalVisitDate = [shortDateFormatter dateFromString:[visitDic objectForKey:@"shortDate"]];
+                NSTimeInterval timeDifference = [_todayDate timeIntervalSinceDate:evalVisitDate];
+                double minutes = timeDifference / 60;
+                double days = minutes / 1440;
+                
+                if (days > 1.0 ) {
+                    [yesterdayVisits addObject:visitDic];
+                }  else if (days < -0.001) {
+                    [tomorrowVisits addObject:visitDic];
+                }
+            }
+        }
+    }
+}
+
+-(void) parseDataResponseMulti:(NSDictionary *)responseDic {
+    NSArray *visitsArray = [responseDic objectForKey:@"visits"];
+    NSDictionary *clientsDic = [responseDic objectForKey:@"clients"];
+    
+    [self setUpFlags:[responseDic objectForKey:@"flags"]];
+    [self readPreferencesDic:[responseDic objectForKey:@"preferences"]];
+
+    NSString *dateString  = [shortDateFormatter stringFromDate:_todayDate];
+        
+    for(int i = 0; i < [todaysVisits count]; i++) {
+        NSDictionary *visit = [todaysVisits objectAtIndex:i];
+        visit = nil;
+    }
+    [todaysVisits removeAllObjects];
+    
+    if([[responseDic objectForKey:@"visits"]isKindOfClass:[NSArray class]]) {
+        NSMutableArray *todayVisitArray = [[NSMutableArray alloc]init];    
+        for(NSDictionary *visitDic in visitsArray) {
+            
+            NSString *shortDateString = [visitDic objectForKey:@"shortDate"];
+            NSDate *evalVisitDate = [shortDateFormatter dateFromString:shortDateString];
+                    
+            NSTimeInterval timeDifference = [_todayDate timeIntervalSinceDate:evalVisitDate];
+            double minutes = timeDifference / 60;
+            double days = minutes / 1440;
+            
+            
+            if (days > 0.0 && days < 1.0) {
+                [todaysVisits addObject:visitDic];
+            } 
+            if ([[visitDic objectForKey:@"shortDate"] isEqualToString:dateString]) {
+                [todayVisitArray addObject:visitDic];
+            }
+        }
+        
+        NSInteger payloadCount = [todayVisitArray count];
+        NSInteger visitListCount = [_visitData count];
+        
+        NSMutableDictionary *visitDictionary = [[NSMutableDictionary alloc]init];
+        [visitDictionary setObject:todayVisitArray forKey:@"visits"];
+        [visitDictionary setObject:clientsDic forKey:@"clients"];
+        NSDate *today = [NSDate date];
+        
+        if (payloadCount <= 0) {
+            [self.visitData removeAllObjects];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [[NSNotificationCenter defaultCenter]postNotificationName:@"noVisits" object:nil];
+            });
+        }
+        else if (payloadCount > 0 && visitListCount <= 0 && _showingWhichDate == _todayDate) {
+            [self setUpNewData:visitDictionary];
+        }
+        else if (_showingWhichDate != _todayDate) {
+            [self setUpNewData:visitDictionary];
+        }
+        else if (payloadCount > 0 && visitListCount > 0) {
+            [self setUpNewData:visitDictionary];
+        }
+        [self networkRequest:today toDate:today pollUpdate:@"append"];
+    }
+}
+
+-(void) setUpNewData:(NSDictionary *)responseDic {
+        
+    if([responseDic objectForKey:@"clients"] != NULL) {
+        NSDictionary *clientDic = [responseDic objectForKey:@"clients"];
+        [self createClientData:clientDic];
+    }
+    
+    if ([responseDic objectForKey:@"visits"] != NULL) {
+        NSArray *visitsDic = [responseDic objectForKey:@"visits"];
+        //NSLog(@"Visits Dic: %@", visitsDic);
+        [self createVisitData:visitsDic dataNew:@"YES"];
+    }
+    
+}
+
+-(void) readPreferencesDic: (NSDictionary *)preferenceDic {
+    
+    if([[preferenceDic objectForKey:@"showDocAttachListView"]isEqualToString:@"YES"]) {
+        self.showDocAttachListView = TRUE;
+    } else {
+        self.showDocAttachListView = TRUE;
+    }
+}
+
+-(void) setupKeyInfoForClient:(DataClient*)clientKeyInfo withDataDic:(NSDictionary*) clientDictionary {
+    
+    if ([clientKeyInfo.hasKey isEqualToString:@"Yes"]) {
+        clientKeyInfo.hasKey = @"Yes";
+    } else if (clientKeyInfo.hasKey == NULL)  {
+        clientKeyInfo.hasKey = @"No";
+    }else  {
+        clientKeyInfo.hasKey = @"No";
+    }
+    
+    clientKeyInfo.keyID = [clientDictionary objectForKey:@"keyid"];
+    
+    if ([[clientDictionary objectForKey:@"nokeyrequired"]isEqualToString:@"1"]) {
+        clientKeyInfo.noKeyRequired = YES;
+    } else if ([clientDictionary objectForKey:@"nokeyrequired"] == NULL) {
+        clientKeyInfo.noKeyRequired = NO;
+    }else {
+        clientKeyInfo.noKeyRequired = NO;
+    }
+    
+    if ([[clientDictionary objectForKey:@"showkeydescriptionnotkeyid"]isEqualToString:@"Yes"]) {
+        clientKeyInfo.useKeyDescriptionInstead = YES;
+        clientKeyInfo.keyDescriptionText = [clientDictionary objectForKey:@"keydescription"];
+    } else {
+        clientKeyInfo.useKeyDescriptionInstead = NO;
+        clientKeyInfo.keyDescriptionText = [clientDictionary objectForKey:@"keydescription"];
+    }
+    
+}
+
+-(void) createClientData:(NSDictionary *)clientDic {
+
+    NSMutableArray *clientDataTemp = [[NSMutableArray alloc]init];
+    
+    for (NSString *clientIDNum in clientDic) {
+        DataClient *clientProfile = [[DataClient alloc]init];
+        NSDictionary *clientInformation  = [clientDic objectForKey:clientIDNum];
+        [clientProfile createClientProfile:clientInformation];
+        [self setupKeyInfoForClient:clientProfile withDataDic:clientInformation];
+        [clientDataTemp addObject:clientProfile];
+    }
+        
+    [self getCachedPetImages:clientDataTemp];
+
+    @synchronized(self) {
+        for (DataClient *clientDataDetails in clientDataTemp) {
+             BOOL isNewClient = TRUE;
+            for (DataClient *clientOld in _clientData) {
+                if ([clientDataDetails.clientID isEqualToString:clientOld.clientID]) {
+                    isNewClient = FALSE;
+                }
+            }
+            if (isNewClient) {
+                [_clientData addObject:clientDataDetails];
+            }
+        }
+    }
+}
+
+-(NSMutableArray*) localPetImagesList {
+    
+    NSMutableArray *cacheImage = [[NSMutableArray alloc]init];
+    
+    NSArray *userDefaultKeys = [[[NSUserDefaults standardUserDefaults]dictionaryRepresentation]allKeys];
+    NSArray *values = [[[NSUserDefaults standardUserDefaults] dictionaryRepresentation]allValues];
+       
+    for (int i = 0; i < userDefaultKeys.count; i++) {
+        if([[userDefaultKeys objectAtIndex:i]isKindOfClass:[NSString class]]) {
+            NSString *keyValStr = (NSString*)[userDefaultKeys objectAtIndex:i];
+            if ([[values objectAtIndex:i]isKindOfClass:[NSString class]]) {
+                NSString *valStr = (NSString*)[values objectAtIndex:i];
+                if([valStr isEqualToString:@"cachedImage"]) {
+                    if (![keyValStr isEqual:[NSNull null]] && [keyValStr length] > 0 ) {
+                        //NSLog(@"Key Val String: %@",keyValStr);
+                        [cacheImage addObject:keyValStr];
+                    }
+                }
+            }
+        }
+    }
+    return cacheImage;
+}
+
+CGImageRef MyCreateThumbnailImageFromData (NSData * data, int imageSize) {
+    CGImageRef        myThumbnailImage = NULL;
+    CGImageSourceRef  myImageSource;
+    CFDictionaryRef   myOptions = NULL;
+    CFStringRef       myKeys[3];
+    CFTypeRef         myValues[3];
+    CFNumberRef       thumbnailSize;
+ 
+   myImageSource = CGImageSourceCreateWithData((CFDataRef)data,NULL);
+   if (myImageSource == NULL){
+        fprintf(stderr, "Image source is NULL.");
+        return  NULL;
+   }
+ 
+   thumbnailSize = CFNumberCreate(NULL, kCFNumberIntType, &imageSize);
+
+    
+    myKeys[0] = kCGImageSourceCreateThumbnailWithTransform;
+    myValues[0] = (CFTypeRef)kCFBooleanTrue;
+    myKeys[1] = kCGImageSourceCreateThumbnailFromImageIfAbsent;
+    myValues[1] = (CFTypeRef)kCFBooleanTrue;
+    myKeys[2] = kCGImageSourceThumbnailMaxPixelSize;
+    myValues[2] = (CFTypeRef)thumbnailSize;
+ 
+   myOptions = CFDictionaryCreate(NULL, (const void **) myKeys,(const void **) myValues, 2,&kCFTypeDictionaryKeyCallBacks,& kCFTypeDictionaryValueCallBacks);
+ 
+  myThumbnailImage = CGImageSourceCreateThumbnailAtIndex(myImageSource,0,myOptions);
+
+  CFRelease(thumbnailSize);
+  CFRelease(myOptions);
+  CFRelease(myImageSource);
+ 
+   if (myThumbnailImage == NULL){
+         fprintf(stderr, "Thumbnail image not created from image source.");
+         return NULL;
+   }
+ 
+   return myThumbnailImage;
+}
+
+-(void) createVisitData:(NSArray *)visitsDic dataNew:(NSString*)dataNew {
+    
+    
+    NSMutableArray *visitDataTemp = [[NSMutableArray alloc]init];
+    [_onSequenceArray removeAllObjects];
+    NSMutableDictionary *globalVisitInfo;
+    
+    if (visitsDic == NULL) {
+        return;
+    }
+    int i = 100;    
+    for (NSDictionary *key in visitsDic) {
+        VisitDetails *detailsVisit = [[VisitDetails alloc]init];
+        NSDictionary *visitInfo = key;
+        detailsVisit.appointmentid = [visitInfo objectForKey:@"appointmentid"];
+        detailsVisit.sequenceID = [NSString stringWithFormat:@"%i",i];
+        detailsVisit.clientptr = [visitInfo valueForKey:@"clientptr"];
+        detailsVisit.service = [visitInfo objectForKey:@"service"];
+        detailsVisit.petName = [visitInfo objectForKey:@"petNames"];
+        detailsVisit.latitude = [visitInfo objectForKey:@"lat"];
+        detailsVisit.longitude = [visitInfo objectForKey:@"lon"];
+        detailsVisit.status = [visitInfo objectForKey:@"status"];
+        NSString *timeFrom = [visitInfo objectForKey:@"starttime"];
+        NSString *timeTo = [visitInfo objectForKey:@"endtime"];
+        NSDate *dateFrom = [oldFormatter dateFromString:timeFrom];
+        NSDate *dateTo = [oldFormatter dateFromString:timeTo];
+        NSString *newTimeFrom = [newFormatter stringFromDate:dateFrom];
+        NSString *newTimeTo = [newFormatter stringFromDate:dateTo];
+        detailsVisit.timeofday = [visitInfo objectForKey:@"timeofday"];
+        detailsVisit.date = [visitInfo objectForKey:@"shortDate"];
+        detailsVisit.starttime = newTimeFrom;
+        detailsVisit.endtime = newTimeTo;
+        detailsVisit.endDateTime = [visitInfo objectForKey:@"endDateTime"];
+        detailsVisit.rawStartTime = [visitInfo objectForKey:@"starttime"];
+
+        if((![[visitInfo objectForKey:@"arrived"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"arrived"] length] != 0 )) {
+            detailsVisit.arrived = [visitInfo objectForKey:@"arrived"];
+            detailsVisit.dateTimeMarkArrive = [visitInfo objectForKey:@"arrived"];
+        }
+        if((![[visitInfo objectForKey:@"completed"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"completed"] length] != 0 )) {
+            detailsVisit.completed = [visitInfo objectForKey:@"completed"];
+            detailsVisit.dateTimeMarkComplete = [visitInfo objectForKey:@"completed"];
+        }
+        if((![[visitInfo objectForKey:@"canceled"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"canceled"] length] != 0 )) {
+            detailsVisit.canceled = [visitInfo objectForKey:@"canceled"];
+            detailsVisit.isCanceled = YES;
+        } else {
+            detailsVisit.canceled = @"NO";
+            detailsVisit.isCanceled = NO;
+        }
+        if((![[visitInfo objectForKey:@"note"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"note"] length] != 0 )) {
+            detailsVisit.note = [visitInfo objectForKey:@"note"];
+        }
+        if((![[visitInfo objectForKey:@"highpriority"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"highpriority"] length] != 0 )) {
+            detailsVisit.highpriority = YES;
+        }
+        if((![[visitInfo objectForKey:@"clientname"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"clientname"] length] != 0 )) {
+            detailsVisit.clientname = [visitInfo objectForKey:@"clientname"];
+        }
+        if((![[visitInfo objectForKey:@"clientemail"]isEqual:[NSNull null]] )
+           && ( [[visitInfo objectForKey:@"clientemail"] length] != 0 )) {
+            detailsVisit.clientEmail = [visitInfo objectForKey:@"clientemail"];
+        }
+            
+        if ([detailsVisit.status isEqualToString:@"arrived"]) {
+            detailsVisit.hasArrived = YES;
+            self.onWhichVisitID = detailsVisit.appointmentid;
+            self.onSequence = detailsVisit.sequenceID;
+            [_onSequenceArray addObject:detailsVisit];
+        }
+        
+        for(DataClient *client in _clientData) {
+            if ([client.clientID isEqualToString:detailsVisit.clientptr]) {
+                if([client.hasKey isEqualToString:@"Yes"]) {
+                    detailsVisit.hasKey = YES;
+                } else {
+                    detailsVisit.hasKey = NO;
+                }
+                detailsVisit.keyID = client.keyID;
+                detailsVisit.useKeyDescriptionInstead = client.useKeyDescriptionInstead;
+                detailsVisit.noKeyRequired = client.noKeyRequired;
+                detailsVisit.keyDescriptionText = client.keyDescriptionText;
+            }
+        }
+        
+        [self addPawPrintForVisits:(int)i forVisit:detailsVisit];
+        [visitDataTemp addObject:detailsVisit];
+        i++;
+    }
+
+        
+    @synchronized (self) {
+        for (VisitDetails *visitDetail in visitDataTemp) {
+            [visitDetail syncVisitDetailFromFile];
+            if ([visitDetail.status isEqualToString:@"arrived"] && [[globalVisitInfo objectForKey:@"status"]isEqualToString:@"completed"]) {
+                if (visitDetail.completed == NULL) {
+                    NSLog(@"CONFLICT MISMATCH WITH COMPLETED TIME");
+                }
+            }
+        }
+            
+        
+        NSMutableArray *sortedArrayTemp = [self sortVisitsByStatus:visitDataTemp];
+        [self copyTempVisitArrayToVisitData:sortedArrayTemp];
+        
+        [[NSNotificationCenter defaultCenter]
+         postNotificationName:pollingCompleteWithChanges
+         object:self];
+        [sortedArrayTemp removeAllObjects];
+    }
+}
+
+-(void)reconcileVisitStatusMistmatch:(VisitDetails*)visit withServerStatus:(NSString*)serverStatus {
+    visit.status = serverStatus;    
+}
+
+-(void)copyTempVisitArrayToVisitData:(NSMutableArray*)tempArray {
+    [_visitData removeAllObjects];
+
+    for (VisitDetails *visitDetail in tempArray) { 
+        [_visitData addObject:visitDetail];
+    }
+}
+
+-(NSMutableArray*)sortVisitsByStatus:(NSArray*)currentVisitData {
+    NSMutableArray *completedVisitArray = [[NSMutableArray alloc]init];
+    NSMutableArray *arrivedVisitArray = [[NSMutableArray alloc]init];
+    NSMutableArray *futureVisitArray = [[NSMutableArray alloc]init];
+    NSMutableArray *visitReportArray = [[NSMutableArray alloc]init];
+    
+    for (VisitDetails *visitDetail in currentVisitData) {
+        if ([visitDetail.status isEqualToString:@"completed"] && 
+            [visitDetail.visitReportUploadStatus isEqualToString:@"SUCCESS"] && 
+            ![visitDetail.dateTimeVisitReportSubmit isEqual:[NSNull null]]) { 
+            
+            [completedVisitArray addObject:visitDetail];
+            
+        } else if ([visitDetail.status isEqualToString:@"completed"] && 
+                   ![visitDetail.visitNoteBySitter isEqual:[NSNull null]] &&
+                   [visitDetail.dateTimeVisitReportSubmit isEqual:[NSNull null]] && 
+                   ![visitDetail.visitReportUploadStatus isEqualToString:@"SUCCESS"]) {
+            [visitReportArray addObject:visitDetail];
+        } else if ([visitDetail.status isEqualToString:@"arrived"]) {
+            [arrivedVisitArray addObject:visitDetail];
+        } else {            
+            [futureVisitArray addObject:visitDetail];
+        }
+    }
+    
+    NSMutableArray *sortedArray = [[NSMutableArray alloc]init];
+    [sortedArray addObjectsFromArray:arrivedVisitArray];
+    [sortedArray addObjectsFromArray:visitReportArray];
+    [sortedArray addObjectsFromArray:futureVisitArray];    
+    [sortedArray addObjectsFromArray:completedVisitArray];
+    return sortedArray;
+}
+
+-(BOOL)checkReachabilityStatus {
+    
+    return TRUE;
+    
+}
+
+-(void) setUpReachability {
+    __block VisitsAndTracking *weakSelf = self;
+    
+    [[AFNetworkReachabilityManager sharedManager] startMonitoring];
+    [[AFNetworkReachabilityManager sharedManager] setReachabilityStatusChangeBlock:^(AFNetworkReachabilityStatus status) {
+        
+        
+        if (status == -1 || status == 0) {
+
+            weakSelf.isReachable = NO;
+            weakSelf.isUnreachable = YES;
+            weakSelf.isReachableViaWiFi = NO;
+            weakSelf.isReachableViaWWAN = NO;
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"unreachable" object:nil];
+        
+        } else if (status == 1) {
+ 
+
+            weakSelf.isReachable = YES;
+            weakSelf.isUnreachable = NO;
+            weakSelf.isReachableViaWiFi = NO;
+            weakSelf.isReachableViaWWAN = YES;
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"reachable" object:nil];
+            
+        } else if (status == 2) {
+
+            weakSelf.isReachable = YES;
+            weakSelf.isUnreachable = NO;
+            weakSelf.isReachableViaWiFi = YES;
+            weakSelf.isReachableViaWWAN = NO;
+            [[NSNotificationCenter defaultCenter]postNotificationName:@"reachable" object:nil];
+            
+        }
+    }];
+}
+
+-(void) setUpFlags:(NSArray*)flagArray {
+    
+    NSString *pListData = [[NSBundle mainBundle]
+                           pathForResource:@"flagID"
+                           ofType:@"plist"];
+    
+    NSMutableDictionary *flagDicMap = [[NSMutableDictionary alloc]initWithContentsOfFile:pListData];
+    _flagTable = [[NSMutableArray alloc]init];
+    for (NSMutableDictionary *flagDic in flagArray) {
+        NSString *srcImg = [flagDic objectForKey:@"src"];
+        for (NSString *flagMapKey in flagDicMap) {
+            if ([flagMapKey isEqualToString:srcImg]) {
+                [flagDic setObject:[flagDicMap objectForKey:flagMapKey] forKey:@"src"];
+            }
+        }
+        [_flagTable addObject:flagDic];
+    }
+    
+}
+
+-(void) addPawPrintForVisits:(int)pawprintID
+                   forVisit:(VisitDetails*)visitInfo {
+    if (pawprintID == 100) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-red-100"];
+        visitInfo.sequenceID = @"100";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+        
+    } else if (pawprintID == 101) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-lime-100"];
+        visitInfo.sequenceID = @"101";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 102) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-purple-100"];
+        visitInfo.sequenceID = @"102";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 103) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-dark-blue"];
+        visitInfo.sequenceID = @"103";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 104) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-pine-100"];
+        visitInfo.sequenceID = @"104";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+        
+    } else if (pawprintID == 105) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-orange-100"];
+        visitInfo.sequenceID = @"105";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+        
+    } else if (pawprintID == 106) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-teal-100"];
+        visitInfo.sequenceID = @"106";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 107) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-pink-100"];
+        visitInfo.sequenceID = @"107";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 108) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-powder-blue-100"];
+        visitInfo.sequenceID = @"108";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 109) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-black-100"];
+        visitInfo.sequenceID = @"109";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 110) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
+        visitInfo.sequenceID = @"110";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 111) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
+        visitInfo.sequenceID = @"111";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 112) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
+        visitInfo.sequenceID = @"112";
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+        
+    } else if (pawprintID == 113) {
+        
+        visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
+        NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
+        [coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
+    }
+}
+
+
+//**************************************************************************
+//*                                                                        *
+//*           OTHER DATA ITEMS TO HANDLE                                   *
+//*                                                                        *
+//**************************************************************************
+
+-(NSString *)checkErrorCodes:(NSData*)responseCode {
+    
+    NSString *receivedDataString = [[NSString alloc] initWithData:responseCode encoding:NSUTF8StringEncoding];
+    if ([receivedDataString isEqualToString:@"U"]) {
+        _pollingFailReasonCode = @"U";
+
+    }
+    else if ([receivedDataString isEqualToString:@"P"]) {
+        _pollingFailReasonCode = @"P";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+    }
+    else if ([receivedDataString isEqualToString:@"S"]) {
+        
+        _pollingFailReasonCode = @"S";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"I"]) {
+        
+        _pollingFailReasonCode = @"I";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"F"]) {
+        
+        _pollingFailReasonCode = @"F";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"B"]) {
+        
+        _pollingFailReasonCode = @"B";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"M"]) {
+        
+        _pollingFailReasonCode = @"M";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"O"]) {
+        
+        _pollingFailReasonCode = @"O";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"R"]) {
+        
+        _pollingFailReasonCode = @"R";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"C"]) {
+        
+        _pollingFailReasonCode = @"C";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"L"]) {
+        
+        _pollingFailReasonCode = @"L";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+        
+    }
+    else if ([receivedDataString isEqualToString:@"X"]) {
+        
+        _pollingFailReasonCode = @"X";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+    }
+    else if ([receivedDataString isEqualToString:@"T"]) {
+        
+        _pollingFailReasonCode = @"T";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+    }
+    
+    else {
+        
+        _pollingFailReasonCode = @"OK";
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+             postNotificationName:pollingFailed
+             object:self];
+        });
+    }
+    
+    return _pollingFailReasonCode;
 }
 
 -(void) updateCoordinateData {
     
     for (VisitDetails *visit in _visitData) {
         
-        NSDateFormatter *dateFormat = [[NSDateFormatter alloc]init];
-        [dateFormat setLocale:[NSLocale currentLocale]];
-        [dateFormat setTimeZone:[NSTimeZone localTimeZone]];
-        [dateFormat setDateFormat:@"HH:mm"];
-        
-        NSArray *coordinatesForVisitArray = [visit getPointForRoutes];
+        NSArray *coordinatesForVisitArray = [visit rebuildPointsForVisit];
 	
         if(coordinatesForVisitArray != NULL) {
             for (NSData *coordinateData in coordinatesForVisitArray) {
@@ -1080,307 +1742,25 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
     }
 }
 
--(void) parseDataResponsePolling:(NSDictionary *)responseDic {	
-	
-	NSArray *visitsArray = [responseDic objectForKey:@"visits"];
-	NSDictionary *clientsDic = [responseDic objectForKey:@"clients"];
-	
-	if ([clientsDic count] > 0) {
-		NSArray *clientKeys = [clientsDic allKeys];
-		NSMutableDictionary *clientsDicNew = [[NSMutableDictionary alloc]init];
-		for (NSString *keyMatch in clientKeys) {
-			NSDictionary *clientDicNew = [clientsDic objectForKey:keyMatch];
-			NSString *matchClientId = [clientDicNew objectForKey:@"clientid"];
-			
-			BOOL inCurrentClientList = FALSE;
-			
-			for (DataClient *client in _clientData) {
-				if ([client.clientID isEqualToString:matchClientId]) {
-					inCurrentClientList = TRUE;
-				}
-			}
-			
-			if (!inCurrentClientList) {
-				NSDictionary *addClientDic = [clientsDic objectForKey:keyMatch];
-				[clientsDicNew setObject:addClientDic forKey:keyMatch];
-			}
-		}
-		if ([clientsDicNew count] > 0) {
-			[self createClientData:clientsDicNew];
-		}
-		NSDateFormatter *formatterWindow = [[NSDateFormatter alloc]init];
-		[formatterWindow setDateFormat:@"MM/dd/yyyy"];
-		
-		for(int i = 0; i < [yesterdayVisits count]; i++) {
-			NSDictionary *visit = [yesterdayVisits objectAtIndex:i];
-			visit = nil;
-		}
-		[yesterdayVisits removeAllObjects];
-		
-		for(int i = 0; i < [tomorrowVisits count]; i++) {
-			NSDictionary *visit = [tomorrowVisits objectAtIndex:i];
-			visit = nil;
-		}
-		[tomorrowVisits removeAllObjects];
-		if([[responseDic objectForKey:@"visits"]isKindOfClass:[NSArray class]] &&
-		   [[responseDic objectForKey:@"visits"] count] > 0) {
-			
-			for(NSDictionary *visitDic in visitsArray) {
-				NSDate *evalVisitDate = [formatterWindow dateFromString:[visitDic objectForKey:@"shortDate"]];
-				NSTimeInterval timeDifference = [_todayDate timeIntervalSinceDate:evalVisitDate];
-				double minutes = timeDifference / 60;
-				double days = minutes / 1440;
-				
-				if (days > 1.0 ) {
-					[yesterdayVisits addObject:visitDic];
-				}  else if (days < -0.001) {
-					[tomorrowVisits addObject:visitDic];
-				}
-			}
-		}
-	}
-}
-
-
--(void) networkRequest:(NSDate*)forDate toDate:(NSDate*)toDate pollUpdate:(NSString*)pollUpdate {
-	NSString *userName;
-	NSString *password;
-	if (_lastRequest != NULL) {
-		[_lastRequest removeAllObjects];
-	}
-	_lastRequest = [[NSMutableArray alloc]init];
-	
-	NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
-	
-	if ([loginSettings objectForKey:@"username"] != NULL) {
-		userName = [loginSettings objectForKey:@"username"];
-	}
-	if ([loginSettings objectForKey:@"password"]) {
-		password = [loginSettings objectForKey:@"password"];
-	}
-	
-	NSString *urlLoginStr = [userName stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	NSString *urlPassStr = [password stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-
-	NSString *requestString;
-	NSDate *yesterday = [forDate dateBySubtractingDays:_numFutureDaysVisitInformation];
-	NSString *date_String=[requestDateFormat stringFromDate:yesterday];
-	NSString *endDateString = [self stringForNextTwoWeeks:_numFutureDaysVisitInformation fromDate:forDate];
-
-	NSDateFormatter *formatFutureDate = [[NSDateFormatter alloc]init];
-	[formatFutureDate setDateFormat:@"yyyy/MM/dd"];
-	
-	if(!_firstLogin) {
-		requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&firstLogin=1"
-						 ,urlLoginStr,urlPassStr,date_String,endDateString];
-	} else {
-		requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@",urlLoginStr,urlPassStr,date_String,endDateString];
-	}
-	
-	NSURL *urlLogin = [NSURL URLWithString:requestString];
-	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-	[request setTimeoutInterval:10.0];
-	[request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
-	mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-											  delegate:self
-										 delegateQueue:[NSOperationQueue mainQueue]];
-	
-	NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
-													  completionHandler:^(NSData * _Nullable data,
-																		  NSURLResponse * _Nullable responseDic, 
-																		  NSError * _Nullable error) {
-														  
-														  NSUserDefaults *networkLogging = [NSUserDefaults standardUserDefaults];
-														  NSDate *rightNow2 = [NSDate date];
-														  NSDateFormatter *dateFormat2 = [[NSDateFormatter alloc]init];
-														  [dateFormat2 setDateFormat:@"HH:mm:ss"];
-														  NSString *dateString2 = [dateFormat2 stringFromDate:rightNow2];
-														  NSDictionary *errorDic = [error userInfo];
-														  [_lastRequest addObject:dateString2];
-														  
-														  NSString *errorCodeResponse = [self checkErrorCodes:data];
-														  NSLog(@"Error code response: %@", errorDic);
-														  if(error == nil) {
-															  [_lastRequest addObject:@"OK"];
-															  if ([errorCodeResponse isEqualToString:@"OK"]) {
-																  NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
-																															  options:
-																							   NSJSONReadingMutableContainers|
-																							   NSJSONReadingAllowFragments|
-																							   NSJSONWritingPrettyPrinted|
-																							   NSJSONReadingMutableLeaves
-																																error:&error];
-																  
-																  if (responseDic != NULL) {
-																	  [self parseDataResponsePolling:responseDic];
-																	  
-																  }  else {
-																	  _pollingFailReasonCode = @"NODATA";
-																	  dispatch_async(dispatch_get_main_queue(), ^{
-																		  [[NSNotificationCenter defaultCenter]
-																		   postNotificationName:pollingFailed
-																		   object:self];
-																	  });
-																  }
-															  }
-															  
-															  else if ([errorCodeResponse isEqualToString:@"T"]) {
-																  dispatch_async(dispatch_get_main_queue(), ^{
-																	  [[NSNotificationCenter defaultCenter]
-																	   postNotificationName:@"tempPassword"
-																	   object:self];
-																  });
-															  }
-															  
-															  else if ([errorCodeResponse isEqualToString:@"P"]) {
-																  dispatch_async(dispatch_get_main_queue(), ^{
-																	  [[NSNotificationCenter defaultCenter]
-																	   postNotificationName:pollingFailed
-																	   object:self];
-																  });
-															  }
-														  } else {
-															  
-															  [_lastRequest addObject:@"FAIL"];
-															  NSString *failURLString = [errorDic valueForKey:@"NSErrorFailingURLStringKey"];
-															  NSString *errorDetails = error.localizedDescription;
-															  NSMutableDictionary *logServerError = [[NSMutableDictionary alloc]init];
-															  [logServerError setObject:rightNow2 forKey:@"date"];
-															  [logServerError setObject:failURLString forKey:@"error1"];
-															  [logServerError setObject:errorDetails forKey:@"errorDetails"];
-															  [logServerError setObject:@"polling request" forKey:@"location"];
-															  [logServerError setObject:@"network" forKey:@"type"];
-															  [networkLogging setObject:logServerError forKey:dateString2];
-															  
-															  //NSLog(@"POLLING FAILED");
-															  dispatch_async(dispatch_get_main_queue(), ^{
-																  [[NSNotificationCenter defaultCenter]
-																   postNotificationName:pollingFailed
-																   object:self];
-															  });
-														  }
-													  }];
-	
-	[postDataTask resume];
-	[[NSURLCache sharedURLCache] removeAllCachedResponses];
-	[mySession finishTasksAndInvalidate];
-}
--(void) networkRequest:(NSDate*)forDate toDate:(NSDate*)toDate {
-    NSString *userName;
-    NSString *password;
+-(void) getTodayVisits {
     
-    if (_lastRequest != NULL) {
-        [_lastRequest removeAllObjects];
-    }
-    _lastRequest = [[NSMutableArray alloc]init];
-	
-    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
-	
-    if ([loginSettings objectForKey:@"username"] != NULL) {
-        userName = [loginSettings objectForKey:@"username"];
-    }
-    if ([loginSettings objectForKey:@"password"]) {
-        password = [loginSettings objectForKey:@"password"];
-    }
-	
-    NSString *urlLoginStr = [userName stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-    NSString *urlPassStr = [password stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+    //NSLog(@"Getting todays visits");
+    NSMutableArray *sortedArrayTemp = [self sortVisitsByStatus:_visitData];
+    [_visitData removeAllObjects];
 
-	NSString *requestString;
-	NSDateFormatter *formatFutureDate = [[NSDateFormatter alloc]init];
-	[formatFutureDate setDateFormat:@"yyyy-MM-dd"];
-
-	NSString *dateBegin = [formatFutureDate stringFromDate:forDate];
-	NSString *dateEnd = [formatFutureDate stringFromDate:toDate];
-	
-	if(!_firstLogin) {
-        requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&firstLogin=1&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
-    } else {
-		requestString = [NSString stringWithFormat:@"https://leashtime.com/native-prov-multiday-list.php?loginid=%@&password=%@&start=%@&end=%@&clientdocs=complete",urlLoginStr,urlPassStr,dateBegin,dateEnd];
-    }
-		
-	NSURL *urlLogin = [NSURL URLWithString:requestString];
-    NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-    [request setTimeoutInterval:40.0];
-    [request setValue:_userAgentLT forHTTPHeaderField:@"User-Agent"];
-    mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-                                                             delegate:self
-                                                        delegateQueue:[NSOperationQueue mainQueue]];
-    
-    NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request
-                                                     completionHandler:^(NSData * _Nullable data,
-																		 NSURLResponse * _Nullable responseDic, 
-																		 NSError * _Nullable error) {
-									     
-														 NSDate *rightNow2 = [NSDate date];
-														 NSDateFormatter *dateFormat2 = [[NSDateFormatter alloc]init];
-														 [dateFormat2 setDateFormat:@"HH:mm:ss"];
-														 NSString *dateString2 = [dateFormat2 stringFromDate:rightNow2];
-														 [_lastRequest addObject:dateString2];
-														NSString *errorCodeResponse = [self checkErrorCodes:data];
-
-														 //NSLog(@"Raw data: %@, errorResponseCode: %@", data, _pollingFailReasonCode);
-														 if(error == nil) {
-															 if (responseDic != NULL) {
-																 [_lastRequest addObject:@"OK"];
-																 if ([errorCodeResponse isEqualToString:@"OK"]) {
-																	 NSDictionary *responseJSON = [NSJSONSerialization JSONObjectWithData:data 
-																																  options:NSJSONReadingMutableContainers|
-																								   NSJSONReadingAllowFragments|
-																								   NSJSONReadingMutableLeaves 
-																																	error:&error];
-																	 
-																	 
-																	// NSLog(@"response: %@", responseDic);
-																	 [self parseDataResponseMulti:responseJSON];
-																	 [self updateCoordinateData];
-																	 
-																	 if (!self.firstLogin) {
-																		 self.firstLogin = YES;
-																		 [[NSNotificationCenter defaultCenter]postNotificationName:@"loginSuccess" object:NULL];
-																		 [self visitDetailsVisitStatus];
-																	 }
-																	 
-																 }  else {
-																	 //_pollingFailReasonCode = @"NODATA";
-																	 dispatch_async(dispatch_get_main_queue(), ^{
-																		 [[NSNotificationCenter defaultCenter]
-																		  postNotificationName:pollingFailed
-																		  object:self];
-																	 });
-																 }
-															 }
-															 
-															 else if ([errorCodeResponse isEqualToString:@"T"]) {
-																 dispatch_async(dispatch_get_main_queue(), ^{
-																	 [[NSNotificationCenter defaultCenter]
-																	  postNotificationName:@"tempPassword"
-																	  object:self];
-																 });
-															 }
-														
-														 } else {
-															 dispatch_async(dispatch_get_main_queue(), ^{
-																 [[NSNotificationCenter defaultCenter]
-																  postNotificationName:pollingFailed
-																  object:self];
-															 });
-														 }
+    for (VisitDetails *visitDetail in sortedArrayTemp) {
+        [_visitData addObject:visitDetail];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [visitDetail syncVisitDetailFromFile];
+        });
         
-    }];
-    
-    [postDataTask resume];
-    [[NSURLCache sharedURLCache] removeAllCachedResponses];
-    [mySession finishTasksAndInvalidate];
-    
+    }
+    [sortedArrayTemp removeAllObjects];
 }
-
 -(void) getNextPrevDay:(NSDate*)dateGet {
 	
-	NSDateFormatter *formatDate = [[NSDateFormatter alloc]init];
-	[formatDate setDateFormat:@"MM/dd/yyyy"];
-	NSString *todayDateString = [formatDate stringFromDate:_todayDate];
-	NSString *getDateString = [formatDate stringFromDate:dateGet];
+	NSString *todayDateString = [shortDateFormatter stringFromDate:_todayDate];
+	NSString *getDateString = [shortDateFormatter stringFromDate:dateGet];
 
 	if([todayDateString isEqualToString:getDateString]) {
 		[self createVisitData:todaysVisits dataNew:@"YES"];
@@ -1413,7 +1793,6 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 		 object:self];
 	}
 }
-
 -(NSString*) dayBeforeAfter:(NSDate*)goingToDate {
 	
 	NSTimeInterval timeDifference = [_todayDate timeIntervalSinceDate:goingToDate];
@@ -1430,7 +1809,6 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	return @"before";
 	
 }
-
 -(NSString*) showingDateBeforeAfter:(NSDate*)goingToDate {
 	
 	NSTimeInterval timeDifference = [_showingWhichDate timeIntervalSinceDate:goingToDate];
@@ -1448,9 +1826,10 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	return @"before";
 	
 }
-
--(void) updateArriveCompleteInTodayYesterdayTomorrow:(VisitDetails*)visitItem withStatus:(NSString*)status {
+//-(void) updateArriveCompleteInTodayYesterdayTomorrow:(VisitDetails*)visitItem withStatus:(NSString*)status {
 	
+-(void) updateArriveCompleteInTodayYesterdayTomorrow:(VisitDetails *)visitItem withStatus:(NSString *)status {
+    
 	NSMutableDictionary *matchVisit;
 	@synchronized(self) {
 		for(NSMutableDictionary *visits in todaysVisits) {
@@ -1458,18 +1837,14 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 				matchVisit = visits;
 			}
 		}
-	}
 
-	@synchronized(self) {
 		for(NSMutableDictionary *visits in yesterdayVisits) {
 			if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
 				matchVisit = visits;
 			}
 		}
-	}
 
 		
-	@synchronized(self) {
 		for(NSMutableDictionary *visits in tomorrowVisits) {
 			if([visitItem.appointmentid isEqualToString:[visits objectForKey:@"appointmentid"]]) {
 				matchVisit = visits;
@@ -1485,794 +1860,13 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	
 	if([status isEqualToString:@"completed"]) {
 		[matchVisit setObject:visitItem.status forKey:@"status"];
-		[matchVisit setObject:visitItem.completed forKey:@"completed"];
+		//[matchVisit setObject:visitItem.completed forKey:@"completed"];
 	}
-}
-
--(void) parseDataResponseMulti:(NSDictionary *)responseDic {
-	
-    NSArray *visitsArray = [responseDic objectForKey:@"visits"];
-    NSDictionary *clientsDic = [responseDic objectForKey:@"clients"];
-	
-	[self setUpFlags:[responseDic objectForKey:@"flags"]];
-	[self readPreferencesDic:[responseDic objectForKey:@"preferences"]];
-	
-	NSDateFormatter *formatterWindow = [[NSDateFormatter alloc]init];
-	[formatterWindow setDateFormat:@"MM/dd/yyyy"];
-	NSString *dateString = [formatterWindow stringFromDate:_todayDate];
-	
-	for(int i = 0; i < [todaysVisits count]; i++) {
-		NSDictionary *visit = [todaysVisits objectAtIndex:i];
-		visit = nil;
-	}
-	
-	[todaysVisits removeAllObjects];
-	
-    if([[responseDic objectForKey:@"visits"]isKindOfClass:[NSArray class]]) {
-
-        NSMutableArray *todayVisitArray = [[NSMutableArray alloc]init];	
-        for(NSDictionary *visitDic in visitsArray) {
-            NSString *todayDate = [visitDic objectForKey:@"shortDate"];
-			NSDate *evalVisitDate = [formatterWindow dateFromString:[visitDic objectForKey:@"shortDate"]];
-			NSTimeInterval timeDifference = [_todayDate timeIntervalSinceDate:evalVisitDate];
-			double minutes = timeDifference / 60;
-			double days = minutes / 1440;
-						
-			if (days > 0.0 && days < 1.0) {
-				[todaysVisits addObject:visitDic];
-			}
-            if ([todayDate isEqualToString:dateString]) {
-				[todayVisitArray addObject:visitDic];
-			}
-        }
-        
-        NSInteger payloadCount = [todayVisitArray count];
-        NSInteger visitListCount = [_visitData count];
-        NSMutableDictionary *visitDictionary = [[NSMutableDictionary alloc]init];
-        
-        [visitDictionary setObject:todayVisitArray forKey:@"visits"];
-
-		
-		[visitDictionary setObject:clientsDic forKey:@"clients"];
-		
-        if (payloadCount <= 0) {
-			
-            [self.visitData removeAllObjects];
-
-			dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSNotificationCenter defaultCenter]postNotificationName:@"noVisits"
-                                                                   object:nil];
-            });
-
-        }
-        else if (payloadCount > 0 && visitListCount <= 0 && _showingWhichDate == _todayDate) {
-			
-            [self setUpNewData:visitDictionary];
-			
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSNotificationCenter defaultCenter]
-                 postNotificationName:pollingCompleteWithChanges
-                 object:self];
-            });
-		
-        }
-        else if (_showingWhichDate != _todayDate) {
-            
-            [self setUpNewData:visitDictionary];
-			
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSNotificationCenter defaultCenter]
-                 postNotificationName:pollingCompleteWithChanges
-                 object:self];
-            });
-            
-        }
-        else if (payloadCount > 0 && visitListCount > 0) {
-            
-            [self setUpNewData:visitDictionary];
-			
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSNotificationCenter defaultCenter]
-                 postNotificationName:pollingCompleteWithChanges
-                 object:self];
-			});
-        }
-        
-    } 
-	NSDate *today = [NSDate date];
-	[self networkRequest:today toDate:today pollUpdate:@"append"];
-}
-
--(void) setUpNewData:(NSDictionary *)responseDic {
-
-	if([responseDic objectForKey:@"clients"] != NULL) {
-		NSDictionary *clientDic = [responseDic objectForKey:@"clients"];
-		[self createClientData:clientDic];
-	}
-	
-	if ([responseDic objectForKey:@"visits"] != NULL) {
-		NSArray *visitsDic = [responseDic objectForKey:@"visits"];
-		[self createVisitData:visitsDic dataNew:@"YES"];
-	}
-	
-}
-
--(void) readPreferencesDic: (NSDictionary *)preferenceDic {
-
-	if([[preferenceDic objectForKey:@"showDocAttachListView"]isEqualToString:@"YES"]) {
-		self.showDocAttachListView = TRUE;
-	} else {
-		//self.showDocAttachListView = FALSE;
-		self.showDocAttachListView = TRUE;
-	}
-	for (NSString *prefOption in preferenceDic) {
-		///NSLog(@"Option: %@, Val: %@", prefOption, [preferenceDic objectForKey:prefOption]);
-	}
-	
-}
-
--(void) createClientData:(NSDictionary *)clientDic {
-
-	NSMutableArray *clientDataTemp = [[NSMutableArray alloc]init];
-
-	
-    for (NSString *clientIDNum in clientDic) {
-        DataClient *clientProfile = [[DataClient alloc]init];
-        NSMutableDictionary *clientInformation = [clientDic objectForKey:clientIDNum];   
-        clientProfile.clientID = [clientInformation objectForKey:@"clientid"];
-        clientProfile.clientName = [clientInformation objectForKey:@"clientname"];
-        clientProfile.email = [clientInformation objectForKey:@"email"];
-        clientProfile.email2 = [clientInformation objectForKey:@"email2"];
-        clientProfile.cellphone = [clientInformation objectForKey:@"cellphone"];
-        clientProfile.cellphone2 = [clientInformation objectForKey:@"cellphone2"];
-        clientProfile.street1 = [clientInformation objectForKey:@"street1"];
-        clientProfile.street2 = [clientInformation objectForKey:@"street2"];
-        clientProfile.city = [clientInformation objectForKey:@"city"];
-        clientProfile.state = [clientInformation objectForKey:@"state"];
-        clientProfile.zip = [clientInformation objectForKey:@"zip"];
-        clientProfile.garageGateCode = [clientInformation objectForKey:@"garagegatecode"];
-        clientProfile.alarmCompany = [clientInformation objectForKey:@"alarmcompany"];
-        clientProfile.alarmCompanyPhone = [clientInformation objectForKey:@"alarmcophone"];
-        clientProfile.alarmInfo = [clientInformation objectForKey:@"alarminfo"];
-        clientProfile.hasKey = [clientInformation objectForKey:@"hasKey"];
-		clientProfile.basicInfoNotes = [clientInformation objectForKey:@"notes"];
-		clientProfile.parkingInfo = [clientInformation objectForKey:@"parkinginfo"];
-		clientProfile.directionsInfo = [clientInformation objectForKey:@"directions"];
-		
-        if ([clientProfile.hasKey isEqualToString:@"Yes"]) {
-            clientProfile.hasKey = @"Yes";
-		} else if (clientProfile.hasKey == NULL)  {
-			clientProfile.hasKey = @"No";
-		}else  {
-            clientProfile.hasKey = @"No";
-        }
-				
-        clientProfile.keyID = [clientInformation objectForKey:@"keyid"];
-        clientProfile.clinicPtr = [clientInformation objectForKey:@"clinicptr"];
-        clientProfile.clinicZip = [clientInformation objectForKey:@"cliniczip"];
-        clientProfile.clinicCity = [clientInformation objectForKey:@"cliniccity"];
-        clientProfile.clinicName = [clientInformation objectForKey:@"clinicname"];
-        clientProfile.clinicPhone = [clientInformation objectForKey:@"clinicphone"];
-        clientProfile.clinicLat = (NSString*)[clientInformation objectForKey:@"cliniclat"];
-        clientProfile.clinicLon = (NSString*)[clientInformation objectForKey:@"cliniclon"];
-			
-        clientProfile.vetPtr = [clientInformation objectForKey:@"vetptr"];
-        clientProfile.vetName = [clientInformation objectForKey:@"vetname"];
-        clientProfile.vetCity = [clientInformation objectForKey:@"vetcity"];
-        clientProfile.vetState = [clientInformation objectForKey:@"vetstate"];
-        clientProfile.vetStreet1 = [clientInformation objectForKey:@"vetstreet"];
-        clientProfile.vetStreet2 = [clientInformation objectForKey:@"vetstreet2"];
-        clientProfile.vetPhone = [clientInformation objectForKey:@"vetphone"];
-        clientProfile.vetLat = [clientInformation objectForKey:@"vetlat"];
-        clientProfile.vetLon = [clientInformation objectForKey:@"vatlon"];
-
-        clientProfile.sortName = [clientInformation objectForKey:@"sortname"];
-        clientProfile.firstName = [clientInformation objectForKey:@"fname"];
-        clientProfile.firstName2 = [clientInformation objectForKey:@"fname2"];
-        clientProfile.lastName = [clientInformation objectForKey:@"lname"];
-        clientProfile.lastName2 = [clientInformation objectForKey:@"lname2"];
-        clientProfile.workphone = [clientInformation objectForKey:@"workphone"];
-        clientProfile.homePhone = [clientInformation objectForKey:@"homephone"];
-        clientProfile.leashLocation = [clientInformation objectForKey:@"leashloc"];
-        clientProfile.foodLocation = [clientInformation objectForKey:@"foodloc"];
-
-        NSDictionary *emergencyDic = [clientInformation objectForKey:@"emergency"];
-        clientProfile.emergencyCellPhone = [emergencyDic objectForKey:@"cellphone"];
-        clientProfile.emergencyHasKey = [emergencyDic objectForKey:@"haskey"];
-        clientProfile.emergencyHomePhone = [emergencyDic objectForKey:@"homephone"];
-        clientProfile.emergencyLocation = [emergencyDic objectForKey:@"location"];
-        clientProfile.emergencyName = [emergencyDic objectForKey:@"name"];
-        clientProfile.emergencyNote = [emergencyDic objectForKey:@"note"];
-        clientProfile.emergencyWorkPhone = [emergencyDic objectForKey:@"workphone"];
-        
-        NSDictionary *trustedNeighborDic = [clientInformation objectForKey:@"neighbor"];
-        clientProfile.trustedNeighborName = [trustedNeighborDic objectForKey:@"name"];
-        clientProfile.trustedNeighborHasKey = [trustedNeighborDic objectForKey:@"haskey"];
-        clientProfile.trustedNeighborHomePhone = [trustedNeighborDic objectForKey:@"homephone"];
-        clientProfile.trustedNeighborCellPhone = [trustedNeighborDic objectForKey:@"cellphone"];
-        clientProfile.trustedNeighborLocation = [trustedNeighborDic objectForKey:@"location"];
-        clientProfile.trustedNeighborNote = [trustedNeighborDic objectForKey:@"note"];
-        clientProfile.trustedNeighborWorkPhone = [trustedNeighborDic objectForKey:@"workphone"];
-        
-		for (int i = 1; i < 101; i ++) {
-			NSString *customString = [NSString stringWithFormat:@"custom%i",i];
-			if([clientInformation objectForKey:customString] != NULL) {
-				[clientProfile.customClientFields addObject:[clientInformation objectForKey:customString]];				
-			}
-		}
-		
-        if ([[clientInformation objectForKey:@"nokeyrequired"]isEqualToString:@"1"]) {
-            clientProfile.noKeyRequired = YES;
-		} else if ([clientInformation objectForKey:@"nokeyrequired"] == NULL) {
-			clientProfile.noKeyRequired = NO;
-		}else {
-            clientProfile.noKeyRequired = NO;
-        }
-					
-		if ([[clientInformation objectForKey:@"showkeydescriptionnotkeyid"]isEqualToString:@"Yes"]) {
-            clientProfile.useKeyDescriptionInstead = YES;
-            clientProfile.keyDescriptionText = [clientInformation objectForKey:@"keydescription"];
-        } else {
-            clientProfile.useKeyDescriptionInstead = NO;
-            clientProfile.keyDescriptionText = [clientInformation objectForKey:@"keydescription"];
-        }
-        
-        NSArray *clientFlags = [clientInformation objectForKey:@"flags"];
-        
-        for (NSDictionary *flagItemClient in clientFlags) {
-            [clientProfile.clientFlagsArray addObject:flagItemClient];
-        }
-	
-        NSArray *petsData = [clientInformation objectForKey:@"pets"];
-		
-        clientProfile.petsDataRaw = (NSMutableArray*)petsData;
-
-		NSString *customLabelDescr;
-        NSString *customLabelNotes;
-        
-		for (int i = 0; i < [petsData count]; i++) {
-			id petInfoTest = [petsData objectAtIndex:i];
-			if ([petInfoTest isKindOfClass:[NSDictionary class]]) {
-				NSMutableDictionary *petInfo = [petsData objectAtIndex:i];
-				customLabelDescr = [petInfo objectForKey:@"description"];
-				customLabelNotes = [petInfo objectForKey:@"notes"];
-			}
-			[clientDataTemp addObject:clientProfile];
-        }
-        
-        int petCount =(int) [petsData count];
-        NSString *petName;
-        NSString *petID;
-		int errataCount = (int)[clientProfile.errataDoc count];
-
-		if (petCount == 0) {
-			NSMutableDictionary *petBasicInfoDic = [[NSMutableDictionary alloc]init];
-			[petBasicInfoDic setObject:@"NO PETS" forKey:@"name"];
-			[petBasicInfoDic setObject:@"0" forKey:@"petid"];
-			[clientProfile.petInfo addObject:petBasicInfoDic];
-		} else {
-			for (int i = 0; i < petCount; i++) {
-				NSDictionary *petsDataDicType = [petsData objectAtIndex:i];
-				NSMutableDictionary *petBasicInfoDic = [[NSMutableDictionary alloc]init];
-				NSMutableDictionary *petCustomInfoDic = [[NSMutableDictionary alloc]init];
-				petName = [petsDataDicType objectForKey:@"name"];
-				petID = [petsDataDicType objectForKey:@"petid"];
-				NSString *customLabel;
-				NSString *customLabelVal;
-				id customLabelValid;
-				
-				for (NSString* petDataDicKey in petsDataDicType) {
-					if ([[petsDataDicType objectForKey:petDataDicKey]isKindOfClass:[NSDictionary class]]) {
-						NSDictionary *customFieldValuePair = [petsDataDicType objectForKey:petDataDicKey];
-						customLabel = [customFieldValuePair objectForKey:@"label"];
-						customLabelValid = [customFieldValuePair objectForKey:@"value"];
-						if ([customLabelValid isKindOfClass:[NSString class]]) {
-							customLabelVal = [customFieldValuePair objectForKey:@"value"];
-							if (![customLabelVal isEqual:[NSNull null]] && [customLabelVal length] > 0) {
-								if ([customLabelVal isEqualToString:@"1"])
-								{
-									[petCustomInfoDic setObject:@"1" forKey:customLabel];
-								}  else if ([customLabelVal isEqualToString:@"0"]) {
-									[petCustomInfoDic setObject:@"0" forKey:customLabel];
-								}  else {
-									[petCustomInfoDic setObject:customLabelVal forKey:customLabel];
-								}
-							}
-						} else if ([customLabelValid isKindOfClass:[NSDictionary class]]) {
-							NSDictionary *docAttachDic = (NSMutableDictionary*)customLabelValid;
-							NSMutableDictionary *customLabelValueDictionary = [[NSMutableDictionary alloc]init];
-							[customLabelValueDictionary setObject:[docAttachDic objectForKey:@"url"] forKey:@"url"];
-							[customLabelValueDictionary setObject:[docAttachDic objectForKey:@"mimetype"] forKey:@"mimetype"];
-							[customLabelValueDictionary setObject:[docAttachDic objectForKey:@"label"] forKey:@"label"];
-							[customLabelValueDictionary setObject:customLabel forKey:@"fieldlabel"];
-							[customLabelValueDictionary setObject:petID forKey:@"petid"];
-							[customLabelValueDictionary setObject:@"docAttach" forKey:@"type"];
-							errataCount = errataCount  + 1;
-							NSString *errataCountString = [NSString stringWithFormat:@"%i",errataCount];
-							[customLabelValueDictionary setObject:errataCountString forKey:@"errataIndex"];
-							[clientProfile.errataDoc addObject:customLabelValueDictionary];
-							[petCustomInfoDic setObject:customLabelValueDictionary forKey:customLabel];
-						}
-					} else {
-						//NSLog(@"Pet basic info field: %@", [petsDataDicType objectForKey:petDataDicKey]);
-						[petBasicInfoDic setObject:[petsDataDicType objectForKey:petDataDicKey] forKey:petDataDicKey];
-					}
-				}
-				if (petBasicInfoDic != nil) {
-					[petBasicInfoDic setObject:petID forKey:@"petid"];
-					[clientProfile.petInfo addObject:petBasicInfoDic];
-				}
-				if (petCustomInfoDic != nil) {
-					NSMutableDictionary *customDicForPet = [[NSMutableDictionary alloc]init];
-					[petCustomInfoDic setObject:petID forKey:@"petid"];
-					[customDicForPet setObject:petCustomInfoDic forKey:petName];
-					[clientProfile.customPetInfo addObject:customDicForPet];
-				}
-			}
-		}
-		[clientProfile createDetailAccordions];
-		[clientDataTemp addObject:clientProfile];
-	}
-
-    NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
-    NSString *userName;
-    NSString *password;
-    
-    if ([loginSettings objectForKey:@"username"] != NULL) {
-        userName = [loginSettings objectForKey:@"username"];
-    }
-    if ([loginSettings objectForKey:@"password"]) {
-        password = [loginSettings objectForKey:@"password"];
-    }
-    
-    NSArray *userDefaultKeys = [[[NSUserDefaults standardUserDefaults]dictionaryRepresentation]allKeys];
-    NSArray *values = [[[NSUserDefaults standardUserDefaults] dictionaryRepresentation]allValues];
-
-    for (int i = 0; i < userDefaultKeys.count; i++) {
-        if([[userDefaultKeys objectAtIndex:i]isKindOfClass:[NSString class]]) {
-            NSString *keyValStr = (NSString*)[userDefaultKeys objectAtIndex:i];
-            if ([[values objectAtIndex:i]isKindOfClass:[NSString class]]) {
-                NSString *valStr = (NSString*)[values objectAtIndex:i];
-                if([valStr isEqualToString:@"cachedImage"]) {
-                    if (![keyValStr isEqual:[NSNull null]] && [keyValStr length] > 0 ) {
-						[_cachedPetImages addObject:keyValStr];
-                    }
-                }
-            }
-        }
-    }
-    
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsPath = paths[0];
-    for (DataClient *clientProfile in clientDataTemp) {
-
-        if([clientProfile.petInfo count] > 0)
-        {
-            BOOL imageCached = NO;
-            
-            for (NSDictionary *petDictionary in clientProfile.petInfo) {
-                
-                NSString *petID = [petDictionary objectForKey:@"petid"];
-                NSString *petName = [petDictionary objectForKey:@"name"];
-				NSString *nameOfImageFile = [NSString stringWithFormat:@"/profile-%@-%@.png",clientProfile.clientID,petID];
-                NSString *imagePath = [documentsPath stringByAppendingString:nameOfImageFile];
-
-                if ([_cachedPetImages count] > 0) {
-                    for (NSString *petIDForImage in _cachedPetImages) {
-                        if ([petIDForImage isEqualToString:nameOfImageFile]) {
-                            imageCached = YES;
-                            if ([_fileManager fileExistsAtPath:imagePath]) {
-                                UIImage *petProfileImage = [[UIImage alloc]initWithContentsOfFile:imagePath];
-                                if (petProfileImage != nil) {
-                                    [clientProfile.petImages setObject:petProfileImage forKey:petName];
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (!imageCached) {
-                    NSString *petImgReq = [NSString stringWithFormat:@"https://leashtime.com/pet-photo-sessionless.php?id=%@&loginid=%@&password=%@",petID,userName,password];
-                    NSURL *urlRequest = [NSURL URLWithString:petImgReq];
-                    NSURLCache *sharedCache = [[NSURLCache alloc] initWithMemoryCapacity:0 diskCapacity:0 diskPath:nil];
-                    [NSURLCache setSharedURLCache:sharedCache];
-                    
-                    SDWebImageDownloader *downloader = [SDWebImageDownloader sharedDownloader];
-                    downloader.maxConcurrentDownloads = 1;
-                    [downloader downloadImageWithURL:urlRequest
-                                             options:0
-                                            progress:^(NSInteger receivedSize, NSInteger expectedSize) {
-                                                
-                                                
-                                            } completed:^(UIImage *image, NSData *data, NSError *error, BOOL finished) {
-                                                
-                                                NSDateFormatter *format = [[NSDateFormatter alloc]init];
-                                                [format setDateFormat:@"MM/dd/yyyy"];
-                                                NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-                                                NSString *documentsPath = paths[0];
-                                                
-                                                NSString *nameOfImageFile = [NSString stringWithFormat:@"/profile-%@-%@.png",clientProfile.clientID,petID];
-                                                NSString *imagePath = [documentsPath stringByAppendingString:nameOfImageFile];
-                                                
-                                                NSData *jpgDataImg = UIImageJPEGRepresentation(image, 1);
-                                                UIImage *petImageJpeg = [UIImage imageWithData:jpgDataImg];
-
-												dispatch_async(dispatch_get_main_queue(), ^{
-													[jpgDataImg writeToFile:imagePath atomically:YES];
-												});
-                                                
-                                                if (data != nil) {
-                                                    
-                                                    [clientProfile.petImages setObject:petImageJpeg forKey:petName];
-                                                    [_cachedPetImages addObject:nameOfImageFile];
-                                                    [loginSettings setObject:@"cachedImage" forKey:nameOfImageFile];
-                                                    
-                                                }
-                                            }];
-                }
-            }
-        }
-    }
-    
-    @synchronized(self) {
-        for (DataClient *clientDataDetails in clientDataTemp) {
-			BOOL isNewClient = TRUE;
-			for (DataClient *clientOld in _clientData) {
-				if ([clientDataDetails.clientID isEqualToString:clientOld.clientID]) {
-					isNewClient = FALSE;
-				}
-			}
-			if (isNewClient) {
-				[_clientData addObject:clientDataDetails];
-			}
-        }
-    }
-}
-
--(void) createVisitData:(NSArray *)visitsDic dataNew:(NSString*)dataNew {
-
-	[_onSequenceArray removeAllObjects];
-	if (visitsDic == NULL) {
-		return;
-	}
-	NSMutableArray *visitDataTemp = [[NSMutableArray alloc]init];
-	int i = 100;
-	
-	for (NSDictionary *key in visitsDic) {
-		VisitDetails *detailsVisit = [[VisitDetails alloc]init];
-
-		NSDictionary *visitInfo = key;
-		detailsVisit.appointmentid = [visitInfo objectForKey:@"appointmentid"];
-		NSString *clientIntVal = [visitInfo valueForKey:@"clientptr"];
-		detailsVisit.sequenceID = [NSString stringWithFormat:@"%i",i];
-		detailsVisit.clientptr = [NSString stringWithFormat:@"%@",clientIntVal];
-		detailsVisit.service = [visitInfo objectForKey:@"service"];
-  
-		detailsVisit.timeofday = [visitInfo objectForKey:@"timeofday"];
-		detailsVisit.petName = [visitInfo objectForKey:@"petNames"];
-		detailsVisit.latitude = [visitInfo objectForKey:@"lat"];
-		detailsVisit.longitude = [visitInfo objectForKey:@"lon"];
-		detailsVisit.date = [visitInfo objectForKey:@"shortDate"];
-
-		detailsVisit.status = [visitInfo objectForKey:@"status"];
-				
-		NSString *timeFrom = [visitInfo objectForKey:@"starttime"];
-		NSString *timeTo = [visitInfo objectForKey:@"endtime"];
-		NSDate *dateFrom = [oldFormatter dateFromString:timeFrom];
-		NSString *newTimeFrom = [newFormatter stringFromDate:dateFrom];
-		NSDate *dateTo = [oldFormatter dateFromString:timeTo];
-		NSString *newTimeTo = [newFormatter stringFromDate:dateTo];
-		
-		detailsVisit.starttime = newTimeFrom;
-		detailsVisit.endtime = newTimeTo;
-		detailsVisit.endDateTime = [visitInfo objectForKey:@"endDateTime"];
-		detailsVisit.rawStartTime = [visitInfo objectForKey:@"starttime"];
-		
-		if ([detailsVisit.status isEqualToString:@"arrived"]) {
-			self.onWhichVisitID = detailsVisit.appointmentid;
-			self.onSequence = detailsVisit.sequenceID;
-			[_onSequenceArray addObject:detailsVisit];
-			detailsVisit.hasArrived = YES;
-		}
-		
-		if((![[visitInfo objectForKey:@"arrived"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"arrived"] length] != 0 )) {
-			
-			detailsVisit.arrived = [visitInfo objectForKey:@"arrived"];
-			
-			NSDateFormatter *dateFormat = [[NSDateFormatter alloc] init];
-			[dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-			[dateFormat setTimeZone:[NSTimeZone localTimeZone]];
-			
-			NSDate *date = [dateFormat dateFromString:detailsVisit.arrived];
-			detailsVisit.NSDateMarkArrive = date;
-			detailsVisit.dateTimeMarkArrive = detailsVisit.arrived;
-			
-		}
-		
-		if((![[visitInfo objectForKey:@"completed"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"completed"] length] != 0 )) {
-			
-			detailsVisit.completed = [visitInfo objectForKey:@"completed"];
-			NSDateFormatter *dateFormat = [[NSDateFormatter alloc] init];
-			[dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-			[dateFormat setTimeZone:[NSTimeZone localTimeZone]];
-			NSDate *date = [dateFormat dateFromString:detailsVisit.completed];
-
-			NSString *dateString = [dateFormat stringFromDate:date];
-			detailsVisit.dateTimeMarkComplete = dateString;
-
-		}
-		
-		if((![[visitInfo objectForKey:@"canceled"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"canceled"] length] != 0 )) {
-			
-			detailsVisit.canceled = [visitInfo objectForKey:@"canceled"];
-			detailsVisit.isCanceled = YES;
-			NSLog(@"Canceled");
-
-		} else {
-			
-			detailsVisit.canceled = @"NO";
-			detailsVisit.isCanceled = NO;
-		}
-		
-		if((![[visitInfo objectForKey:@"note"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"note"] length] != 0 )) {
-			
-			detailsVisit.note = [visitInfo objectForKey:@"note"];
-
-		}
-		
-		if((![[visitInfo objectForKey:@"highpriority"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"highpriority"] length] != 0 )) {
-			
-			detailsVisit.highpriority = YES;
-
-		}
-		
-		if((![[visitInfo objectForKey:@"clientname"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"clientname"] length] != 0 )) {
-			
-			detailsVisit.clientname = [visitInfo objectForKey:@"clientname"];
-
-		}
-		
-		if((![[visitInfo objectForKey:@"clientemail"]isEqual:[NSNull null]] )
-		   && ( [[visitInfo objectForKey:@"clientemail"] length] != 0 )) {
-			
-			detailsVisit.clientEmail = [visitInfo objectForKey:@"clientemail"];
-			
-		}
-		
-		for(DataClient *client in _clientData) {
-			if ([client.clientID isEqualToString:detailsVisit.clientptr]) {
-				if([client.hasKey isEqualToString:@"Yes"]) {
-					detailsVisit.hasKey = YES;
-				} else {
-					detailsVisit.hasKey = NO;
-				}
-				detailsVisit.keyID = client.keyID;
-				detailsVisit.useKeyDescriptionInstead = client.useKeyDescriptionInstead;
-				detailsVisit.noKeyRequired = client.noKeyRequired;
-				detailsVisit.keyDescriptionText = client.keyDescriptionText;
-				
-				if([client.errataDoc count] > 0) {
-					for (NSDictionary *errataDic in client.errataDoc) {
-						[detailsVisit.docItems addObject:errataDic];
-					}
-				}
-			}
-		}
-		
-		[self addPawPrintForVisits:(int)i forVisit:detailsVisit];
-		
-		[visitDataTemp addObject:detailsVisit];
-		
-		NSDateFormatter *arriveCompleteTime = [[NSDateFormatter alloc]init];
-		[arriveCompleteTime setDateFormat:@"HH:mm a"];
-
-		
-		if([_arrivalCompleteQueueItems count] > 0) {				
-			for(NSDictionary *badRequestItem in _arrivalCompleteQueueItems) {
-				for (VisitDetails *visitDetail in visitDataTemp) {
-					
-					if([[badRequestItem objectForKey:@"appointmentptr"]isEqualToString:visitDetail.appointmentid]) {
-						if([[badRequestItem objectForKey:@"TYPE"]isEqualToString:@"ARRIVE"]) {
-
-							visitDetail.status = @"arrived";
-							visitDetail.isComplete = NO;
-							visitDetail.hasArrived = YES;
-							NSString *dateTimeMarkArriveString = [badRequestItem objectForKey:@"visitDateTimeArrive"];
-							NSDate *markArriveTime = [arriveCompleteTime dateFromString:dateTimeMarkArriveString];
-							visitDetail.NSDateMarkArrive = markArriveTime;
-							visitDetail.dateTimeMarkArrive = dateTimeMarkArriveString;
-							visitDetail.coordinateLatitudeMarkArrive = [badRequestItem objectForKey:@"visitArriveLatitude"];
-							visitDetail.coordinateLongitudeMarkArrive = [badRequestItem objectForKey:@"visitArriveLongitude"];
-							
-						} else if ([[badRequestItem objectForKey:@"TYPE"]isEqualToString:@"COMPLETE"]) {
-						
-							visitDetail.status = @"completed";
-							visitDetail.isComplete = YES;
-							visitDetail.hasArrived = NO;
-							NSString *dateTimeMarkArriveString = [badRequestItem objectForKey:@"visitDateTimeMarkComplete"];
-							NSDate *markCompleteTime = [arriveCompleteTime dateFromString:dateTimeMarkArriveString];
-							visitDetail.NSDateMarkComplete = markCompleteTime;
-							visitDetail.dateTimeMarkComplete = dateTimeMarkArriveString;
-							visitDetail.coordinateLatitudeMarkComplete = [badRequestItem objectForKey:@"visitCompleteLatitude"];
-							visitDetail.coordinateLongitudeMarkArrive = [badRequestItem objectForKey:@"visitCompleteLongitude"];
-						}
-					}
-				}
-			}
-		}
-		i++;
-	}
-
-	[_visitData removeAllObjects];
-	for (VisitDetails *visitDetail in visitDataTemp) {
-		[_visitData addObject:visitDetail];
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[visitDetail syncVisitDetailFromFile];
-		});
-	}
-	[visitDataTemp removeAllObjects];
-}
-
--(NSString *)checkErrorCodes:(NSData*)responseCode {
-	
-	NSString *receivedDataString = [[NSString alloc] initWithData:responseCode encoding:NSUTF8StringEncoding];
-	if ([receivedDataString isEqualToString:@"U"]) {
-		_pollingFailReasonCode = @"U";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-	}
-	else if ([receivedDataString isEqualToString:@"P"]) {
-		_pollingFailReasonCode = @"P";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-	}
-	else if ([receivedDataString isEqualToString:@"S"]) {
-		
-		_pollingFailReasonCode = @"S";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"I"]) {
-		
-		_pollingFailReasonCode = @"I";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"F"]) {
-		
-		_pollingFailReasonCode = @"F";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"B"]) {
-		
-		_pollingFailReasonCode = @"B";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"M"]) {
-		
-		_pollingFailReasonCode = @"M";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"O"]) {
-		
-		_pollingFailReasonCode = @"O";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"R"]) {
-		
-		_pollingFailReasonCode = @"R";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"C"]) {
-		
-		_pollingFailReasonCode = @"C";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"L"]) {
-		
-		_pollingFailReasonCode = @"L";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-		
-	}
-	else if ([receivedDataString isEqualToString:@"X"]) {
-		
-		_pollingFailReasonCode = @"X";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-	}
-	else if ([receivedDataString isEqualToString:@"T"]) {
-		
-		_pollingFailReasonCode = @"T";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-	}
-	
-	else {
-		
-		_pollingFailReasonCode = @"OK";
-		dispatch_async(dispatch_get_main_queue(), ^{
-			[[NSNotificationCenter defaultCenter]
-			 postNotificationName:pollingFailed
-			 object:self];
-		});
-	}
-	
-	return _pollingFailReasonCode;
-}
-
--(void) addPictureForPet:(UIImage*)petPicture {
-
-    for (VisitDetails *visitInfo in _visitData) {
-        
-        if ([_onWhichVisitID isEqualToString:visitInfo.appointmentid]) {
-			[visitInfo addImageForPet:petPicture];
-            [visitInfo writeVisitDataToFile];
-        }
-    }
 }
 
 -(void) addLocationForMultiArrive:(CLLocation*)point {
-	
+
+    //NSLog(@"Adding point for route multi location");
 	if(_multiVisitArrive) {
 		
 		if(_onWhichVisitID != NULL && _onSequenceArray != NULL && point != NULL) {
@@ -2280,6 +1874,8 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 				for(VisitDetails *visitInfo in _visitData) {
 					if([visitInfo.sequenceID isEqualToString:onSequence.sequenceID]
 					   && ![visitInfo.status isEqualToString:@"completed"]) {
+                        //NSLog(@"VISITS TRACKING ADDING COORDINATE TO VISIT: %@", visitInfo.appointmentid);
+
 						[visitInfo addPointForRouteUsingCLLocation:point];
 					}
 				}
@@ -2287,8 +1883,9 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 		}
 	}
 }
-
 -(void) addLocationCoordinate:(CLLocation*)point {
+    //NSLog(@"VISITS TRACKING ADDING SINGLE VISIT COORDINATE TO VISIT OBJECT");
+    
 	if(_onWhichVisitID != NULL && ![_onSequence isEqualToString:@"000"] && point != NULL) {
 
 		for (VisitDetails *visitInfo in _visitData) {
@@ -2303,387 +1900,31 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 }
 -(NSArray*)getCoordinatesForVisit:(NSString*)visitID {
 	
+    //NSLog(@"Acquiring visit coordinate array for visit with ID: %@", visitID);
 	NSMutableArray *rebuildVisitPoints = [[NSMutableArray alloc]init];
 	VisitDetails *currentVisit;
 	
 	for (VisitDetails *visitInfo in _visitData) {
 		if ([visitID isEqualToString:visitInfo.appointmentid]) {
 			currentVisit = visitInfo;
-			NSArray *rawCoordinates = [[NSArray alloc]initWithArray:[visitInfo getPointForRoutes]];
+			NSArray *rawCoordinates = [[NSArray alloc]initWithArray:[visitInfo rebuildPointsForVisit]];
+            //Wg(@"Raw coordinates from visit: %@", rawCoordinates);
 			for (NSData *locationDic in rawCoordinates) {
-				CLLocation *locationPoint = [NSKeyedUnarchiver unarchiveObjectWithData:locationDic];
-				[rebuildVisitPoints addObject:locationPoint];
+                CLLocation *locationPoint = [NSKeyedUnarchiver unarchivedObjectOfClass:[CLLocation class] 
+                                                                              fromData:locationDic 
+                                                                                 error:nil];
+				//CLLocation *locationPoint = [NSKeyedUnarchiver unarchiveObjectWithData:locationDic];
+                [rebuildVisitPoints addObject:locationPoint];
+
 			}
 		}
 	}
-	
-	//NSString *markArriveLatitutde = currentVisit.coordinateLatitudeMarkArrive;
-	//NSString *markArriveLongitude = currentVisit.coordinateLongitudeMarkArrive;
-	//NSString *markCompleteLatitude = currentVisit.coordinateLatitudeMarkComplete;
-	//NSString *markCompleteLongitude = currentVisit.coordinateLongitudeMarkComplete;
-	
-	//double arriveLat = [markArriveLatitutde doubleValue];
-	//double arriveLon = [markArriveLongitude doubleValue];
-	//double completeLat = [markCompleteLatitude doubleValue];
-	//double completeLon = [markCompleteLongitude doubleValue];
-	
-	//CLLocationCoordinate2D arriveLoc = CLLocationCoordinate2DMake(arriveLat, arriveLon);
-	//CLLocationCoordinate2D completeLoc  = CLLocationCoordinate2DMake(completeLat, completeLon);
-	
-	//CLLocation *arriveLocation = [[CLLocation alloc]initWithCoordinate:arriveLoc altitude:0 horizontalAccuracy:0 verticalAccuracy:0 timestamp:[NSDate date]];
-	
-	NSSortDescriptor *descriptor = [[NSSortDescriptor alloc]initWithKey:@"timestamp" ascending:YES];
+
+    NSSortDescriptor *descriptor = [[NSSortDescriptor alloc]initWithKey:@"timestamp" ascending:YES];
 	[rebuildVisitPoints sortUsingDescriptors:[NSArray arrayWithObject:descriptor]];
-	
-	//double average_distance = 0;
-	//int number_coordinates = (int)[rebuildVisitPoints count];
-	//double total_distance = 0;
-	
-	/*for (int p = 0; p < number_coordinates; p++) {
-		CLLocation *currentLocationPoint = [rebuildVisitPoints objectAtIndex:p];
-		CLLocation *nextPoint = [rebuildVisitPoints objectAtIndex:p+1];
-		double distanceBetween = [nextPoint distanceFromLocation:currentLocationPoint];
-		total_distance = total_distance + distanceBetween;
-	}
-	average_distance = total_distance / number_coordinates;
-	
-	NSMutableArray *removeDistanceElements = [[NSMutableArray alloc]init];
-	CLLocation *firstPoint = [rebuildVisitPoints objectAtIndex:0];
-	
-	double distanceArriveToFirstCoord = [firstPoint distanceFromLocation:arriveLocation];
-	if (distanceArriveToFirstCoord > 2 * average_distance) {
-		// Assign the first coordinate tracked as the Arrival Coordinate
-	}
-	for (int p = 0; p < number_coordinates; p++) {
-		CLLocation *currentLocationPoint = [rebuildVisitPoints objectAtIndex:p];
-		CLLocation *nextPoint = [rebuildVisitPoints objectAtIndex:p+1];
-		double distanceBetween = [nextPoint distanceFromLocation:currentLocationPoint];	
-		if (distanceBetween > 2 * average_distance) {
-			
-			if (p == 0) {
-				// First coordinate is bad
-				
-			}
-			int p2 = p + 2;
-			if (p2 == number_coordinates - 1) { 
-				
-			} else if (p2 < number_coordinates - 1) {
-				CLLocation *nextNextPoint = [rebuildVisitPoints objectAtIndex:p2];
-				
-			}
-		}
-	}*/
-	
 	return rebuildVisitPoints;
 }
--(void) setUpReachability {
-    
-    [[AFNetworkReachabilityManager sharedManager]startMonitoring];
-    [[AFNetworkReachabilityManager sharedManager] setReachabilityStatusChangeBlock:^(AFNetworkReachabilityStatus status) {
-		
-        if (status == -1) {
 
-            _isReachable = NO;
-            _isUnreachable = YES;
-            _isReachableViaWiFi = NO;
-            _isReachableViaWWAN = NO;
-            [[NSNotificationCenter defaultCenter]postNotificationName:@"unreachable" object:nil];
-            
-        } else if (status == 0) {
-
-
-            _isReachable = NO;
-            _isUnreachable = YES;
-            _isReachableViaWiFi = NO;
-            _isReachableViaWWAN = NO;
-            [[NSNotificationCenter defaultCenter]postNotificationName:@"unreachable" object:nil];
-            
-        } else if (status == 1) {
- 
-
-            _isReachable = YES;
-            _isUnreachable = NO;
-            _isReachableViaWiFi = NO;
-            _isReachableViaWWAN = YES;
-            [[NSNotificationCenter defaultCenter]postNotificationName:@"reachable" object:nil];
-            
-        } else if (status == 2) {
-
-            _isReachable = YES;
-            _isUnreachable = NO;
-            _isReachableViaWiFi = YES;
-            _isReachableViaWWAN = NO;
-            [[NSNotificationCenter defaultCenter]postNotificationName:@"reachable" object:nil];
-            
-        }
-    }];
-}
--(void) turnOffGPSTracking {
-    
-    if (_userTracking) {
-        
-        _userTracking = NO;
-        NSUserDefaults *settingsGPS = [NSUserDefaults standardUserDefaults];
-        [settingsGPS setObject:@"NO" forKey:@"gpsON"];
-        
-    } else {
-        
-        _userTracking = YES;
-        NSUserDefaults *settingsGPS = [NSUserDefaults standardUserDefaults];
-        [settingsGPS setObject:@"YES" forKey:@"gpsON"];
-        
-    }
-}
--(void) changePollingFrequency:(NSNumber*)changePollingFrequencyTo {
-    
-    _pollingFrequency = (float)[changePollingFrequencyTo floatValue];
-    
-    NSUserDefaults *settingsPollFrequency = [NSUserDefaults standardUserDefaults];
-    [settingsPollFrequency setObject:changePollingFrequencyTo forKey:@"frequencyOfPolling"];
-    
-}
--(void) changeDistanceFilter:(NSNumber*)changeDistanceFilterTo {
-    
-    NSUserDefaults *distanceOptionSetting = [NSUserDefaults standardUserDefaults];
-    [distanceOptionSetting setObject:changeDistanceFilterTo forKey:@"distanceSettingForGPS"];
-    
-}
--(void) setUserDefault:(NSString*)preferenceSetting {
-    
-    
-}
--(void) setDeviceType:(NSString*)typeDev {
-    
-    deviceType = typeDev;
-    
-}
--(NSMutableArray *) getTodayVisits {
-	
-	return _visitData;
-}
--(NSString *) tellDeviceType {
-	
-	return deviceType;
-	
-}
--(NSString *) getCurrentSystemVersion {
-	
-	UIDevice *currentDevice = [UIDevice currentDevice];
-	NSString *systemVersion = [currentDevice systemVersion];
-	return systemVersion;
-	
-}
-
--(NSString *) stringForNextTwoWeeks:(int)numDays fromDate:(NSDate*)startDate {
-	
-	NSDateFormatter *formatFutureDate = [[NSDateFormatter alloc]init];
-	[formatFutureDate setDateFormat:@"yyyy/MM/dd"];
-	NSCalendar *newCalendar = [NSCalendar currentCalendar];
-	
-	NSDate *twoWeeksFrom = [newCalendar dateByAddingUnit:NSCalendarUnitDay
-								     value:numDays
-								    toDate:startDate
-								   options:kNilOptions];
-	
-	NSString *twoWeeksFromString = [formatFutureDate stringFromDate:twoWeeksFrom];
-	
-	return twoWeeksFromString;
-	
-}
-
--(NSString *) stringForPrevTwoWeeks:(int)numDays fromDate:(NSDate *)startDate {
-	
-	NSDateFormatter *formatFutureDate = [[NSDateFormatter alloc]init];
-	[formatFutureDate setDateFormat:@"yyyy/MM/dd"];
-	
-	NSDate *tomorrow = [startDate dateByAddingDays:1];
-	NSDate *yesterday = [tomorrow dateBySubtractingDays:numDays];
-	NSString *twoWeeksString = [formatFutureDate stringFromDate:yesterday];
-	return twoWeeksString;
-	
-}
-
--(NSString *) stringForYesterday:(int)numDays {
-	NSDateFormatter *format = [[NSDateFormatter alloc]init];
-	[format setDateFormat:@"yyyyMMdd"];
-	NSDate *now = [NSDate date];
-	NSDate *yesterday = [now dateByAddingDays:numDays];
-	NSString *dateString = [format stringFromDate:yesterday];
-	return dateString;
-}
--(NSString *) stringForCurrentDateAndTime {
-	
-	NSDateFormatter *format = [[NSDateFormatter alloc]init];
-	[format setDateFormat:@"yyyyMMddHHmmss"];
-	NSDate *now = [NSDate date];
-	NSString *dateString = [format stringFromDate:now];
-	return dateString;
-	
-}
--(NSString *) stringForCurrentDay {
-	
-	NSDateFormatter *format = [[NSDateFormatter alloc]init];
-	[format setDateFormat:@"yyyyMMdd"];
-	NSDate *now = [NSDate date];
-	NSString *dateString = [format stringFromDate:now];
-	return dateString;
-}
--(NSString*) formatTime:(NSString*)theTimeString {
-	NSString *telNumStr = @"(\\d\\d):(\\d\\d)";
-	NSString *telNumPattern;
-	telNumPattern = [NSString stringWithFormat:theTimeString,telNumPattern];
-	NSRegularExpression *telRegex = [NSRegularExpression regularExpressionWithPattern:telNumStr
-																			  options:NSRegularExpressionCaseInsensitive
-																				error:NULL];
-	
-	__block NSString *dateFormatted;
-	
-	[telRegex enumerateMatchesInString:theTimeString
-							   options:0
-								 range:NSMakeRange(0, [theTimeString length])
-							usingBlock:^(NSTextCheckingResult* match, NSMatchingFlags flags, BOOL* stop)
-	 {
-		 NSRange range = [match rangeAtIndex:0];
-		 NSString *regExTel = [theTimeString substringWithRange:range];
-		 
-		 NSTimeZone *timeZone = [NSTimeZone localTimeZone];
-		 
-		 NSDateFormatter *dateFormatter = [[NSDateFormatter alloc]init];
-		 [dateFormatter setTimeZone:timeZone];
-		 [dateFormatter setDateFormat:@"HH:mm"];
-		 NSDate *timeBegEnd = [dateFormatter dateFromString:regExTel];
-		 [dateFormatter setDateFormat:@"H:mma"];
-		 NSString *formattedDate = [dateFormatter stringFromDate:timeBegEnd];
-		 
-		 //NSString *telephoneNumFormat = [@"" stringByAppendingString:regExTel];
-		 dateFormatted = [NSString stringWithString:formattedDate];
-		 
-	 }];
-	
-	return dateFormatted;
-}
--(void)setUpFlags:(NSArray*)flagArray {
-	
-	NSString *pListData = [[NSBundle mainBundle]
-						   pathForResource:@"flagID"
-						   ofType:@"plist"];
-	
-	NSMutableDictionary *flagDicMap = [[NSMutableDictionary alloc]initWithContentsOfFile:pListData];
-	_flagTable = [[NSMutableArray alloc]init];
-	for (NSMutableDictionary *flagDic in flagArray) {
-		NSString *srcImg = [flagDic objectForKey:@"src"];
-		for (NSString *flagMapKey in flagDicMap) {
-			if ([flagMapKey isEqualToString:srcImg]) {
-				[flagDic setObject:[flagDicMap objectForKey:flagMapKey] forKey:@"src"];
-			}
-		}
-		[_flagTable addObject:flagDic];
-	}
-	
-}
--(void)addPawPrintForVisits:(int)pawprintID
-				   forVisit:(VisitDetails*)visitInfo {
-	if (pawprintID == 100) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-red-100"];
-		visitInfo.sequenceID = @"100";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-		
-	} else if (pawprintID == 101) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-lime-100"];
-		visitInfo.sequenceID = @"101";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 102) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-purple-100"];
-		visitInfo.sequenceID = @"102";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 103) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-dark-blue"];
-		visitInfo.sequenceID = @"103";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 104) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-pine-100"];
-		visitInfo.sequenceID = @"104";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-		
-	} else if (pawprintID == 105) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-orange-100"];
-		visitInfo.sequenceID = @"105";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-		
-	} else if (pawprintID == 106) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-teal-100"];
-		visitInfo.sequenceID = @"106";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 107) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-pink-100"];
-		visitInfo.sequenceID = @"107";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 108) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-powder-blue-100"];
-		visitInfo.sequenceID = @"108";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 109) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"paw-black-100"];
-		visitInfo.sequenceID = @"109";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 110) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
-		visitInfo.sequenceID = @"110";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 111) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
-		visitInfo.sequenceID = @"111";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 112) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
-		visitInfo.sequenceID = @"112";
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-		
-	} else if (pawprintID == 113) {
-		
-		visitInfo.pawPrintForSession = [UIImage imageNamed:@"dog-footprint-green"];
-		NSMutableArray *visitPoints = [[NSMutableArray alloc]init];
-		[coordinatesForVisits setObject:visitPoints forKey:visitInfo.appointmentid];
-	}
-}
 
 -(void) readSettings {
 	
@@ -2701,6 +1942,8 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	} else {
 		_showPetPicInCell = NO;
 	}
+    
+    _showPetPicInCell = YES;
 	
 	if([[userDefaultDic objectForKey:@"showFlags"]boolValue]) {
 		_showFlags = YES;
@@ -2712,7 +1955,8 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 		_showTimer = YES;
 	} else {
 		_showTimer  = NO;
-	}
+	 }
+    _showTimer = YES;
 	
 	if([[userDefaultDic objectForKey:@"showClientName"]boolValue]) {
 		_showClientName = YES;
@@ -2725,6 +1969,7 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	} else {
 		_multiVisitArrive = NO;
 	}
+    _multiVisitArrive = NO;
 	
 	if([[userDefaultDic objectForKey:@"regionMonitor"]boolValue]) {
 		_regionMonitor = YES;
@@ -2777,216 +2022,301 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 		[standardDefaults setObject:[NSNumber numberWithFloat:240] forKey:@"earlyMarkArriveMin"];
 		_numMinutesEarlyArrive = 240.0;
 	}
-	//_numMinutesEarlyArrive = 3000.0;
-	//NSLog(@"Num minutes arrive early: %f",_numMinutesEarlyArrive);
+
 
 }
-
--(void)changeTempPassword:(NSString*)currentTemp
-				  loginID:(NSString*)loginID
-				  newPass:(NSString*)newPass {
-	
-	
-	NSString *urlLoginStr = [loginID stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	NSString *urlPassStr = [currentTemp stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	NSString *urlPassStrNew = [newPass stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
-	
-	NSString *requestString = [NSString stringWithFormat:@"https://leashtime.com/native-change-pass.php?loginid=%@&password=%@&newpassword=%@",urlLoginStr,urlPassStr,urlPassStrNew];
-	
-	NSURL *urlLogin = [NSURL URLWithString:requestString];
-	NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:urlLogin];
-	mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-											  delegate:self
-										 delegateQueue:[NSOperationQueue mainQueue]];
-	
-	NSURLSessionDataTask *postDataTask = [mySession dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data,
-																									NSURLResponse * _Nullable responseDic,
-																									NSError * _Nullable error) {
-		[[NSNotificationCenter defaultCenter]postNotificationName:@"loginNewPass" object:nil];
-	}];
-	
-	[postDataTask resume];
-	
-	[[NSURLCache sharedURLCache] removeAllCachedResponses];
-	
-	[mySession finishTasksAndInvalidate];
-	
+-(void) turnOffGPSTracking {
+    
+    if (_userTracking) {
+        
+        _userTracking = NO;
+        NSUserDefaults *settingsGPS = [NSUserDefaults standardUserDefaults];
+        [settingsGPS setObject:@"NO" forKey:@"gpsON"];
+        
+    } else {
+        
+        _userTracking = YES;
+        NSUserDefaults *settingsGPS = [NSUserDefaults standardUserDefaults];
+        [settingsGPS setObject:@"YES" forKey:@"gpsON"];
+        
+    }
+}
+-(void) changePollingFrequency:(NSNumber*)changePollingFrequencyTo {
+    
+    _pollingFrequency = (float)[changePollingFrequencyTo floatValue];
+    
+    NSUserDefaults *settingsPollFrequency = [NSUserDefaults standardUserDefaults];
+    [settingsPollFrequency setObject:changePollingFrequencyTo forKey:@"frequencyOfPolling"];
+    
+}
+-(void) changeDistanceFilter:(NSNumber*)changeDistanceFilterTo {
+    
+    NSUserDefaults *distanceOptionSetting = [NSUserDefaults standardUserDefaults];
+    [distanceOptionSetting setObject:changeDistanceFilterTo forKey:@"distanceSettingForGPS"];
+    
+}
+-(void) setUserDefault:(NSString*)preferenceSetting {
+    
+    
+}
+-(void) setDeviceType:(NSString*)typeDev {
+    
+    deviceType = typeDev;
+    
 }
 
--(void) uploadCoordinatesToServer {
-	
-	
-	NSDate *rightNow = [NSDate date];
-	
-	NSDateFormatter *dateFormat2 = [[NSDateFormatter alloc]init];
-	[dateFormat2 setDateFormat:@"HH:mm:ss"];
-	NSString *shortDateString = [dateFormat2 stringFromDate:rightNow];
-	
-	
-	NSString *userName;
-	NSString *password;
-	
-	
-	NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
-	
-	if ([loginSettings objectForKey:@"username"] != NULL) {
-		userName = [loginSettings objectForKey:@"username"];
-	}
-	if ([loginSettings objectForKey:@"password"]) {
-		password = [loginSettings objectForKey:@"password"];
-	}
-	
-	NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",userName,password];
-	int i = 0;
-	
-	NSString *visitID;
-	
-	if (_visitData != NULL) {
-		for (VisitDetails *visit in _visitData) {
-			if ([_onSequence isEqualToString:visit.sequenceID]) {
-				visitID = visit.appointmentid;
-			}
-		}
-	}
-	
-	for (CLLocation *coordinateAll in _shareLocationManager.allCoordinates) {
-		
-		NSString *theLatitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.latitude];
-		NSString *theLongitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.longitude];
-		NSString *theAccuracy = [NSString stringWithFormat:@"%f",coordinateAll.horizontalAccuracy];
-		NSString *theEvent = @"mv";
-		NSString *theHeading = @"3";
-		NSString *theError = @"";
-		NSDate *timestampCoordinate = coordinateAll.timestamp;
-		NSDateFormatter *dateFormat = [[NSDateFormatter alloc]init];
-		[dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-		NSString *dateString = [dateFormat stringFromDate:timestampCoordinate];
-		
-		_shareLocationManager.lastSendTimeStamp = shortDateString;
-		_shareLocationManager.lastSendNumCoordinates = [NSString stringWithFormat:@"%lu",(unsigned long)[_shareLocationManager.allCoordinates count]];
-		
-		i++;
-		
-		if (i < [_shareLocationManager.allCoordinates count]) {
-			NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"},",visitID,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
-			credentialString = [credentialString stringByAppendingString:coordinateString];
-		} else {
-			NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"}]",visitID,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
-			credentialString = [credentialString stringByAppendingString:coordinateString];
-		}
-	}
+//**************************************************************************
+//*                                                                        *
+//*           SET UP AND BREAK DOWN                                        *
+//*                                                                        *
+//**************************************************************************
+
+-(void)       logoutCleanup {
+    
+    for(int i = 0; i < [_visitData count]; i++) {
+        VisitDetails *visit = [_visitData objectAtIndex:i];
+        visit = nil;
+    }
+    
+    for(int i = 0; i < [todaysVisits count]; i++) {
+        NSMutableDictionary *visit = [todaysVisits objectAtIndex:i];
+        visit = nil;
+    }
+    
+    for(int i = 0; i < [yesterdayVisits count]; i++) {
+        NSMutableDictionary *visit = [yesterdayVisits objectAtIndex:i];
+        visit = nil;
+    }
+    for(int i = 0; i < [tomorrowVisits count]; i++) {
+        NSMutableDictionary *visit = [tomorrowVisits objectAtIndex:i];
+        visit = nil;
+    }    
+}
+-(NSString *) tellDeviceType {
+    
+    return deviceType;
+    
+}
+-(NSString *) getCurrentSystemVersion {
+    
+    UIDevice *currentDevice = [UIDevice currentDevice];
+    NSString *systemVersion = [currentDevice systemVersion];
+    return systemVersion;
+    
+}
+-(void)       logLowMem {
+    
+    NSUserDefaults *memWarning = [NSUserDefaults standardUserDefaults];    
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    dateFormatter.dateFormat = @"yyyy-MM-dd  HH:mm:ss";
+    NSDate *date = [NSDate date]; 
+    NSString *dateString = [dateFormatter stringFromDate:date];
+    [memWarning setObject:@"Memory Warning"  forKey:dateString];
+    
+    
+}
+-(void)       logFailedUpload:(NSString *)uploadType
+                   forVisitID:(NSString *)visitID {
+    NSUserDefaults *memWarning = [NSUserDefaults standardUserDefaults];    
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    dateFormatter.dateFormat = @"yyyy-MM-dd  HH:mm:ss";
+    NSDate *date = [NSDate date]; 
+    NSString *dateString = [dateFormatter stringFromDate:date];
+    NSString *visitError = [NSString stringWithFormat:@"%@-%@", uploadType, visitID];
+    [memWarning setObject:visitError  forKey:dateString];
+}
+-(NSDictionary*)getColorPalette {
+ 
+    NSString *pListData = [[NSBundle mainBundle]pathForResource:@"ColorPalette" ofType:@"plist"];
+    NSMutableArray *colorPalette = [[NSMutableArray alloc]initWithContentsOfFile:pListData];
+    
+    NSMutableDictionary *returnableColorPalette = [[NSMutableDictionary alloc]init];
+    
+    for (NSDictionary *colorDic in colorPalette) {
+        
+        NSNumber* rValue = (NSNumber*)[colorDic objectForKey:@"R"];
+        NSNumber* gValue = (NSNumber*)[colorDic objectForKey:@"G"];
+        NSNumber* bValue = (NSNumber*)[colorDic objectForKey:@"B"];
+
+        if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-success"]) {
+            
+            UIColor *cellSuccess = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellSuccess forKey:@"success"];
+       
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-success-dark"]) {
+            
+            UIColor *cellSuccessDark = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellSuccessDark forKey:@"successDark"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-info"]) {
+            
+            UIColor *cellInfo = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellInfo forKey:@"info"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-info-dark"]) {
+            
+            UIColor *cellInfoDark = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellInfoDark forKey:@"infoDark"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-danger"]) {
+            
+            UIColor *cellDanger = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellDanger forKey:@"danger"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-danger-dark"]) {
+            
+            UIColor *cellDangerDark = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellDangerDark forKey:@"dangerDark"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-warning"]) {
+            
+            UIColor *cellWarning= [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellWarning forKey:@"warning"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-warning-dark"]) {
+            
+            UIColor *cellWarningDark = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellWarningDark forKey:@"warningDark"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-default"]) {
+            
+            UIColor *cellDefault = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellDefault forKey:@"default"];
+
+        }
+        else  if ([[colorDic objectForKey:@"name"]isEqualToString:@"cell-mdefault-dark"]) {
+            
+            UIColor *cellMDefaultDark = [UIColor colorWithRed:[rValue floatValue]/256 green:[gValue floatValue]/256 blue:[bValue floatValue]/256 alpha:1.0];
+            [returnableColorPalette setObject:cellMDefaultDark forKey:@"defaultDark"];
+
+        }
+    }
+    return returnableColorPalette;
+}
+-(void)         backgroundClean {
+
+}
+-(NSString*)    getUserAgent {
+    
+    return userAgentLT;
+}
+-(void)         setUserAgent:(NSString*) userAgentInfoString {
+    
+    userAgentLT = userAgentInfoString;
 }
 
--(void) resendAllCoordinatesToServer:(NSString*)visitID {
-	
-	for (VisitDetails *visitCoord in _visitData) {
-		if([visitCoord.appointmentid isEqualToString:visitID]) {
-			
-			NSArray *coordinatesForVisit = [visitCoord getPointForRoutes];
-			
-			NSMutableArray *arrayCoordForVisit = [[NSMutableArray alloc]init];
-			
-			if (coordinatesForVisit != NULL) {
-				for (NSData *coordinateData in coordinatesForVisit) {
-					CLLocation *coordinateForVisit = [NSKeyedUnarchiver unarchiveObjectWithData:coordinateData];
-					[arrayCoordForVisit addObject:coordinateForVisit];
-				}
-			}
-			
-			NSString *userName;
-			NSString *password;
-			
-			NSUserDefaults *loginSettings = [NSUserDefaults standardUserDefaults];
-			
-			if ([loginSettings objectForKey:@"username"] != NULL) {
-				userName = [loginSettings objectForKey:@"username"];
-			}
-			if ([loginSettings objectForKey:@"password"]) {
-				password = [loginSettings objectForKey:@"password"];
-			}
-			
-			NSString *credentialString = [NSString stringWithFormat:@"loginid=%@&password=%@&coords=[",userName,password];
-			int i = 0;
-			
-			for (CLLocation *coordinateAll in arrayCoordForVisit) {
-				NSString *theLatitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.latitude];
-				NSString *theLongitude = [NSString stringWithFormat:@"%f",coordinateAll.coordinate.longitude];
-				NSString *theAccuracy = [NSString stringWithFormat:@"%f",coordinateAll.horizontalAccuracy];
-				NSString *theEvent = @"mv";
-				NSString *theHeading = @"3";
-				NSString *theError = @"";
-				NSDate *timestampCoordinate = coordinateAll.timestamp;
-				NSDateFormatter *dateFormat = [[NSDateFormatter alloc]init];
-				[dateFormat setDateFormat:@"YYYY-MM-dd HH:mm:ss"];
-				NSString *dateString = [dateFormat stringFromDate:timestampCoordinate];
-				NSString *visitID = visitCoord.appointmentid;
-				
-				i++;
-				
-				if (i < [arrayCoordForVisit count]) {
-					NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"},",visitID,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
-					credentialString = [credentialString stringByAppendingString:coordinateString];
-				} else {
-					NSString *coordinateString = [NSString stringWithFormat:@"{\"appointmentptr\":\"%@\",\"date\":\"%@\",\"lat\":\"%@\",\"lon\":\"%@\",\"accuracy\":\"%@\",\"event\":\"%@\",\"heading\":\"%@\",\"error\":\"%@\"}]",visitID,dateString,theLatitude,theLongitude,theAccuracy,theEvent,theHeading,theError];
-					credentialString = [credentialString stringByAppendingString:coordinateString];
-				}
-			}
-			
-			NSData *requestBodyDataForJSONCoordinates = [credentialString dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
-			
-			NSString *postLength = [NSString stringWithFormat:@"%lu", (unsigned long)[requestBodyDataForJSONCoordinates length]];
-			NSString *sendCoordURL = @"https://leashtime.com/native-sitter-location.php";
-			NSURL *url = [NSURL URLWithString:sendCoordURL];
-			NSMutableURLRequest *request = [[NSMutableURLRequest alloc]initWithURL:url];
-			[request setHTTPMethod:@"POST"];
-			[request setValue:postLength forHTTPHeaderField:@"Content-Length"];
-			[request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-			[request setTimeoutInterval:20.0];
-			[request setHTTPBody:requestBodyDataForJSONCoordinates];
-			mySession = [NSURLSession sessionWithConfiguration:sessionConfiguration
-									     delegate:self
-									delegateQueue:[NSOperationQueue mainQueue]];
-			
-			NSURLSessionTask *resendCoordTask = [mySession dataTaskWithRequest:request
-											completionHandler:^(NSData * _Nullable data,
-														  NSURLResponse * _Nullable response,
-														  NSError * _Nullable error) {
-												
-												
-												
-												if(error == nil) {
-													
-													NSDictionary *responseDic = [NSJSONSerialization JSONObjectWithData:data
-																							options:
-																	     NSJSONReadingMutableContainers|
-																	     NSJSONReadingAllowFragments|
-																	     NSJSONWritingPrettyPrinted|
-																	     NSJSONReadingMutableLeaves
-																							  error:&error];
-													
-													///NSLog(@"Response dic: %@",responseDic);
 
-												} else {
-													
-													NSString *errorCodeResponse = [self checkErrorCodes:data];
-													//NSLog(@"error response code: %@",errorCodeResponse);
-													//NSLog(@"%@",response);
-												}
-												
-												
-											}];
-			
-			[resendCoordTask resume];
-			[[NSURLCache sharedURLCache] removeAllCachedResponses];
-			
-			[mySession finishTasksAndInvalidate];
-		}
-	}
+-(NSString *) stringForNextTwoWeeks:(int)numDays fromDate:(NSDate*)startDate {
+    
+
+    NSCalendar *newCalendar = [NSCalendar currentCalendar];
+    NSDate *twoWeeksFrom = [newCalendar dateByAddingUnit:NSCalendarUnitDay
+                                     value:numDays
+                                    toDate:startDate
+                                   options:kNilOptions];
+    NSString *twoWeeksFromString = [formatNextTwo stringFromDate:twoWeeksFrom];
+    
+    return twoWeeksFromString;
+    
 }
 
--(void) optimizeRoute {
-//DistanceMatrix *distanceMatrix = [[DistanceMatrix alloc]initWithVisitData:self.visitData];
+-(NSString *) stringForPrevTwoWeeks:(int)numDays fromDate:(NSDate *)startDate {
+    
+    NSDate *tomorrow = [startDate dateByAddingDays:1];
+    NSDate *yesterday = [tomorrow dateBySubtractingDays:numDays];
+    NSString *twoWeeksString = [formatNextTwo stringFromDate:yesterday];
+    return twoWeeksString;
+    
 }
+
+-(NSString *) stringForYesterday:(int)numDays {
+
+    NSDate *now = [NSDate date];
+    NSDate *yesterday = [now dateByAddingDays:numDays];
+    NSString *dateString = [todayNextDayFormatter stringFromDate:yesterday];
+    return dateString;
+}
+
+-(NSString *) stringForCurrentDay {
+    
+    NSDate *now = [NSDate date];
+    NSString *dateString = [todayNextDayFormatter stringFromDate:now];
+    return dateString;
+}
+
+-(NSString*)  formatTime:(NSString*)theTimeString {
+    NSString *telNumStr = @"(\\d\\d):(\\d\\d)";
+    NSString *telNumPattern;
+    telNumPattern = [NSString stringWithFormat:theTimeString,telNumPattern];
+    NSRegularExpression *telRegex = [NSRegularExpression regularExpressionWithPattern:telNumStr
+                                                                              options:NSRegularExpressionCaseInsensitive
+                                                                                error:NULL];
+    
+    __block NSString *dateFormatted;
+    
+    [telRegex enumerateMatchesInString:theTimeString
+                               options:0
+                                 range:NSMakeRange(0, [theTimeString length])
+                            usingBlock:^(NSTextCheckingResult* match, NSMatchingFlags flags, BOOL* stop)
+     {
+         NSRange range = [match rangeAtIndex:0];
+         NSString *regExTel = [theTimeString substringWithRange:range];
+         
+         NSTimeZone *timeZone = [NSTimeZone localTimeZone];
+         
+         NSDateFormatter *dateFormatter = [[NSDateFormatter alloc]init];
+         [dateFormatter setTimeZone:timeZone];
+         [dateFormatter setDateFormat:@"HH:mm"];
+         NSDate *timeBegEnd = [dateFormatter dateFromString:regExTel];
+         [dateFormatter setDateFormat:@"H:mma"];
+         NSString *formattedDate = [dateFormatter stringFromDate:timeBegEnd];
+         
+         //NSString *telephoneNumFormat = [@"" stringByAppendingString:regExTel];
+         dateFormatted = [NSString stringWithString:formattedDate];
+         
+     }];
+    
+    return dateFormatted;
+}
+
+-(void)       shouldStartLocationTracker {
+    
+    bool isOnArriveVisit = FALSE;
+
+    for(VisitDetails *visit in _visitData) {
+        if([visit.status isEqualToString:@"arrived"]) {
+            isOnArriveVisit = TRUE;
+            NSLog(@"There is an arrived visit status");
+        }
+    }
+    LocationTracker *location = [LocationTracker sharedLocationManager];
+
+    if (isOnArriveVisit) {
+        if  (!location.isLocationTracking) {
+            [location startLocationTracking];
+            //NSLog(@"IS ON ARRIVE VISIT starting location tracker");
+        } else {
+            //NSLog(@"IS ON ARRIVE VISIT Location tracker is already tracking");
+        }
+    } else {
+        //NSLog(@"NOT ON ARRIVE VISIT The location tracker status not changed");
+    }
+}
+
+-(void)       optimizeRoute {
+        //DistanceMatrix *distanceMatrix = [[DistanceMatrix alloc]initWithVisitData:self.visitData];
+}
+
+@end
+
 
 /*-(void)fireLocalNotificationsForLateVisits {
 	
@@ -3046,6 +2376,48 @@ constructingBodyWithBlock:^(id<AFMultipartFormData> formData) {
 	}*/
 
 
+// PathSense API key: 7wVgpNip5P3mbBLtTYML33jrHesVKKwo3XeTpONV
+// PathSense API client ID: DbbrW7ccQjp4pEKMBoRms7B5EcpTtJcAo6DZHulf
+// @"LeashTime Sitter iOS /v2.5 /08-10-2016";
+// QVX992DISABLED
 
 
-@end
+/*
+ native-client-visit-report-list.php
+ 
+ Returns a JSON array describing the visit reports for a supplied client in a supplied date range.
+ Parameters: loginid,password,start,end,clientid.  All are required.
+ Errors
+ Authentication errors: single character, as everywhere else.
+ Other errors - displayed as a multiline text that may include:
+ 
+ ERROR: No provider found for user {$user['userid']}
+ ERROR: No client id supplied
+ ERROR: No client found for client id [$clientid]
+ ERROR: Bad start parameter [$start]
+ ERROR: Bad end parameter [$end]
+ Sample Visit Report
+ 
+ {"clientptr":"45","NOTE":"Just so playful and exuberant.","ARRIVED":"2016-10-02 10:14:23","COMPLETED":"2016-10-02 10:18:30","MAPROUTEURL":"https:\/\/LeashTime.com\/visit-map.php?id=175825","VISITPHOTOURL":"appointment-photo.php?id=175825","MOODBUTTON":{"cat":"0","happy":"1","hungry":"0","litter":"0","pee":"1","play":"0","poo":"1","sad":"0","shy":"0","sick":"0"},"appointmentid":"175825","date":"2016-10-02","starttime":"09:00:00","timeofday":"9:00 am-11:00 am","sittername":"Brian Martinez","nickname":null}
+ 
+ No Reports Found
+ 
+ []
+ 
+ Sample Visit Report for a visit not arrived, not completed, and no note:
+ 
+ [{"clientptr":"45","NOTE":null,"ARRIVED":null,"COMPLETED":null,"MAPROUTEURL":"https:\/\/LeashTime.com\/visit-map.php?id=175931","VISITPHOTOURL":null,"MOODBUTTON":[],"appointmentid":"175931","date":"2016-10-05","starttime":"09:00:00","timeofday":"9:00 am-11:00 am","sittername":"Brian Martinez","nickname":null}
+ 
+ TBD
+ 
+ This script filters only on date and client.  It returns data for every visit in the range, regardless of status.  Please let me know if you would like me to filter it any further.  If so, please describe the filter in terms of the attributes listed above (e.g., do not return a report if NOTE is null, ARRIVED is null, and COMPLETED is null
+ 
+ PLEASE BE AWARE...
+ 
+ The NOTE attribute is the visit note at the time of retrieval, which may be the manager's note (from the client) or the sitter's note.
+ 
+ 
+ */
+
+
+

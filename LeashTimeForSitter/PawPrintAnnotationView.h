@@ -10,8 +10,8 @@
 
 @interface PawPrintAnnotationView : MKAnnotationView
 
-@property(nonatomic,strong) NSString *tagID;
-@property(nonatomic,strong) UIImageView *annotationImage;
+@property(nonatomic) NSString *tagID;
+@property(nonatomic) UIImageView *annotationImage;
 
 
 @end

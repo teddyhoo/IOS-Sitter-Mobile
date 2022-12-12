@@ -7,18 +7,30 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "MGSwipeTableCell.h"
 #import "VisitsAndTracking.h"
 #import "DetailAccordionViewController.h"
-//@import UserNotifications;
 
-@interface ClientListViewController : UIViewController <UITableViewDelegate,UITableViewDataSource,MGSwipeTableCellDelegate>
-
-@property(nonatomic,strong)UITableView *tableView;
+@interface ClientListViewController : UIViewController 
 
 
--(void)getUpdatedVisitsForToday;
--(void)foregroundPollingUpdate;
--(void) setupListView;
+-(void) foregroundPollingUpdate;
+-(void) applicationEnterBackground;
+
+-(void) tapDetailView:(id)sender;
+-(void) showManagerNote:(id)sender;
+-(void) goToPhotoTaker:(id)sender;
+-(void) showDocAttach:(id)sender;
+-(void) showMultiDocAttach:(id)sender;
+
+-(void) showAlarmCodeDetailView:(id)sender;
+-(void) showKeyHomeInfo:(id)sender;
+-(void) showHomeInfo:(id)sender;
+
+//-(void) sendVisitReport:(NSString*)visitID withButton:(id)sender;
+-(void) sendVisitReportNoButton:(NSString*) visitID;
+-(void) markArriveButton:(id)sender; 
+-(void) markVisitComplete:(id)sender;
+-(void) resendArrive:(id)sender;
+-(void) resendComplete:(id)sender;
 
 @end

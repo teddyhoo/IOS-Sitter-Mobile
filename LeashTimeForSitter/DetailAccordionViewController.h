@@ -12,15 +12,9 @@
 #import "VisitDetails.h"
 #import "DataClient.h"
 
-@interface DetailAccordionViewController : UIViewController <EMAccordionTableDelegate,MFMessageComposeViewControllerDelegate>
-
-
-@property (nonatomic,strong) EMAccordionTableViewController *emTV;
-@property (nonatomic,strong) EMAccordionTableParallaxHeaderView *emParallaxHeaderView;
-@property float cellHeight;
+@interface DetailAccordionViewController : UIViewController;
 
 -(void)setClientAndVisitID:(DataClient*)clientID visitID:(VisitDetails*)visitID;
-
-
+-(void)setupViews;
 
 @end

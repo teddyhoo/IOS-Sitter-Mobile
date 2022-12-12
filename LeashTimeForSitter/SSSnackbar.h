@@ -11,6 +11,7 @@
 
 
 IB_DESIGNABLE
+
 @interface SSSnackbar : UIView
 /**
  *  The duration of time for which the snackbar should be shown on-screen. Changing this value only has effect before the snackbar is presented by sending it the show message.
@@ -19,6 +20,8 @@ IB_DESIGNABLE
 /**
  *  If this value is set to YES, then the action block is not executed on the main thread to avoid blocking the UI. Instead, it is executed asynchronously on a background queue. 
  */
+@property (assign, nonatomic)BOOL isShowing;
+
 @property (assign, nonatomic) BOOL actionIsLongRunning;
 /**
  *  A block which is called when the user presses the action button on the snackbar.

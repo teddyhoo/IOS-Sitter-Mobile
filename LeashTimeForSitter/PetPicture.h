@@ -11,6 +11,6 @@
 
 @interface PetPicture : UIViewController <UINavigationControllerDelegate, UIImagePickerControllerDelegate>
 
-
+-(void)setVisitID:(NSString*)visitID;
 
 @end

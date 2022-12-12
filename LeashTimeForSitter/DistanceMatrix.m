@@ -34,7 +34,7 @@
 -(instancetype) initWithVisitData:(NSMutableArray *)visitData {
     
 	LocationShareModel *sharedLocationModel = [LocationShareModel sharedModel];
-	_sharedInstance = [VisitsAndTracking sharedInstance];
+	//_sharedInstance = [VisitsAndTracking sharedInstance];
 	
 	/*[[NSNotificationCenter defaultCenter]addObserver:self
 							    selector:@selector(printRoutes)
@@ -46,7 +46,7 @@
 								  name:@"routeOptimized" object:nil];
 	*/
 	
-	_stopMatrix = [[NSMutableArray alloc]init];
+	//_stopMatrix = [[NSMutableArray alloc]init];
 	//__block float _total_distance = 0;
 	//__block float _total_travel = 0;
 	
@@ -54,8 +54,8 @@
 	
 	if(self = [super init]) {
 		
-		_visitLocations = [[NSMutableArray alloc]init];
-		_optimizedVisitLocations = [[NSMutableArray alloc]init];
+		//_visitLocations = [[NSMutableArray alloc]init];
+		//_optimizedVisitLocations = [[NSMutableArray alloc]init];
 		
 		NSString *sitterHomeLat;
 		NSString *sitterHomeLon;
@@ -65,7 +65,7 @@
 		CLLocationCoordinate2D currentLocation = sharedLocationModel.lastValidLocation;
 		
 		if ([loginSettings objectForKey:@"username"] != NULL) {
-			_sitterName = [loginSettings objectForKey:@"username"];
+			//_sitterName = [loginSettings objectForKey:@"username"];
 		}
 		
 		if ([loginSettings objectForKey:@"sitterHomeLatitude"] != NULL) {
@@ -84,9 +84,8 @@
 		} else {
 			sitterName = @"My Name";
 		}
-		
-		
-		int visitCount = 1;
+        
+        int visitCount = 1;
 		
 		NSMutableDictionary *jsonDictionaryContainer = [[NSMutableDictionary alloc]init];
 		NSMutableDictionary *jsonVisitContainer = [[NSMutableDictionary alloc]init];
@@ -120,7 +119,7 @@
 			[visitDetails setObject:@"30" forKey:@"duration"];
 			[visitNumDic setObject:visitDetails forKey:visitCountStr];
 			
-			[_visitLocations addObject:visitNumDic];
+			//[_visitLocations addObject:visitNumDic];
 			[jsonVisitContainer setObject:visitDetails forKey:visitCountStr];
 			
 			visitCount++;
@@ -129,7 +128,7 @@
 		
 		
 		
-		_sitterAddress = CLLocationCoordinate2DMake(38.8606, -77.0900);
+		//_sitterAddress = CLLocationCoordinate2DMake(38.8606, -77.0900);
 		
 		NSMutableDictionary *sitterItem = [[NSMutableDictionary alloc]init];
 		NSMutableDictionary *sitterStart = [[NSMutableDictionary alloc]init];
@@ -165,9 +164,9 @@
 
 -(void)doLocalProcess {
 	
-	NSMutableArray *visitData = _sharedInstance.visitData;
-	NSMutableArray *coordArrayStart = [[NSMutableArray alloc]initWithCapacity:[visitData count]];
-	NSMutableArray *coordArrayEnd = [[NSMutableArray alloc]initWithCapacity:[visitData count]];
+	//NSMutableArray *visitData = _sharedInstance.visitData;
+	//NSMutableArray *coordArrayStart = [[NSMutableArray alloc]initWithCapacity:[visitData count]];
+	//NSMutableArray *coordArrayEnd = [[NSMutableArray alloc]initWithCapacity:[visitData count]];
 	
 	//int visitCount = 1;
 
@@ -237,7 +236,7 @@
 		
 	 }*/
 	
-	for (VisitDetails *visitDic in visitData) {
+	/*for (VisitDetails *visitDic in visitData) {
 		
 		
 		NSMutableDictionary *coordBeginDic = [[NSMutableDictionary alloc]init];
@@ -252,11 +251,11 @@
 		[coordArrayStart addObject:coordBeginDic];
 		[coordArrayEnd addObject:coordBeginDic];
 		
-	}
+	}*/
 	
 	timeInterval = 0.1;
 		
-	for (int i= 0; i  < [coordArrayStart count]; i++) {
+	/*for (int i= 0; i  < [coordArrayStart count]; i++) {
 		
 		NSDictionary *beginDictionary = [coordArrayStart objectAtIndex:i];
 		CLLocationCoordinate2D begCoord = CLLocationCoordinate2DMake([[beginDictionary objectForKey:@"latitude"]floatValue],
@@ -286,27 +285,27 @@
 			[userInfoDirections setObject:directionsFromPlaceToPlace forKey:@"MKDirections"];
 			[userInfoDirections setObject:beginDictionary forKey:@"beginDic"];
 			[userInfoDirections setObject:endDictionary forKey:@"endDic"];
-			/*NSTimer *directionTimer = [NSTimer scheduledTimerWithTimeInterval:timeInterval
+			NSTimer *directionTimer = [NSTimer scheduledTimerWithTimeInterval:timeInterval
 												     target:self
 												   selector:@selector(timedDirectionsRun:)
 												   userInfo:userInfoDirections
 												    repeats:NO];
-			timeInterval += 1.5;*/
+			timeInterval += 1.5;
 		}
-		
+		*/
 	}
-}
+//}
 
 
 
 
 -(void)timedDirectionsRun:(NSTimer*)timer {
 
-	_totalNumCoordinates--;
+	//_totalNumCoordinates--;
 	
 	MKDirectionsRequest *directionRequest = [timer.userInfo objectForKey:@"MKDirections"];
-	NSDictionary *beginDictionary = [timer.userInfo objectForKey:@"beginDic"];
-	NSDictionary *endDictionary = [timer.userInfo objectForKey:@"endDic"];
+	//NSDictionary *beginDictionary = [timer.userInfo objectForKey:@"beginDic"];
+	//NSDictionary *endDictionary = [timer.userInfo objectForKey:@"endDic"];
 	
 	MKDirections *directions = [[MKDirections alloc]initWithRequest:directionRequest];
 	
@@ -316,7 +315,7 @@
 			
 		} else {
 			
-			MKRoute *route = [response.routes firstObject];
+			/*MKRoute *route = [response.routes firstObject];
 			float distanceRoute = route.distance;
 			float timeTravel = route.expectedTravelTime;
 			distanceRoute = distanceRoute/1000;
@@ -338,7 +337,7 @@
 			[matrixEntry setObject:distanceStr forKey:@"distance"];
 			[matrixEntry setObject:timeStr forKey:@"time"];
 			
-			[_stopMatrix addObject:matrixEntry];
+			[_stopMatrix addObject:matrixEntry];*/
 			
 			
 		}
@@ -362,38 +361,38 @@
 
 -(void)printRoutes {
 
-	NSString *fileWriteComma = @"Begin Street, End Street, Distance, Time\n";
+	//NSString *fileWriteComma = @"Begin Street, End Street, Distance, Time\n";
 	
-	for(NSDictionary *matrixItem in _stopMatrix) {
+	/*for(NSDictionary *matrixItem in _stopMatrix) {
 		NSString *begin = [matrixItem objectForKey:@"begin"];
 		NSString *end = [matrixItem objectForKey:@"end"];
 		NSString *distance = [matrixItem objectForKey:@"distance"];
 		NSString *time = [matrixItem objectForKey:@"time"];
 		NSString *anItem = [NSString stringWithFormat:@"%@,%@,%@,%@\n",begin,end,distance,time];
 		fileWriteComma = [fileWriteComma stringByAppendingString:anItem];
-	}
+	}*/
  
 	//NSLog(@"%@", fileWriteComma);
 	
-	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+	/*NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
 	NSString *documentsPath = [paths firstObject];
 	NSString *filename = [NSString stringWithFormat:@"route-matrix-%@",_sitterName];
 	NSString *plistPath = [documentsPath stringByAppendingPathComponent:filename];
 	BOOL writeToFile = [fileWriteComma writeToFile:plistPath atomically:YES encoding:NSASCIIStringEncoding error:NULL];
 	if (!writeToFile) {
 		NSLog(@"Error writing to file");
-	}
+	}*/
 }
 
 -(void)calculateRoutes {
     
     //int itineraryCount = 0;
-    int stopCount = (int)[_stopMatrix count];
+    //int stopCount = (int)[_stopMatrix count];
     //NSLog(@"stop array count: %i",stopCount);
-    for (int i = 0; i < stopCount; i++) {
+    /*for (int i = 0; i < stopCount; i++) {
         NSDictionary *stopItem = [_stopMatrix objectAtIndex:i];
         NSLog(@"Stop: %@",stopItem);
-    }
+    }*/
 }
 
 -(void)actualTimeDistance:(NSMutableArray*)visitData {
@@ -456,8 +455,8 @@
 						     NSJSONReadingMutableLeaves
 												  error:&error];
 		
-		NSDictionary *solutionDic = [responseDic objectForKey:@"solution"];
-		NSArray *driverDic = [solutionDic objectForKey:@"driver_1"];
+		//NSDictionary *solutionDic = [responseDic objectForKey:@"solution"];
+		//NSArray *driverDic = [solutionDic objectForKey:@"driver_1"];
 		NSArray *errorArray = [responseDic allKeys];
 		
 		BOOL errorBool = NO;
@@ -472,9 +471,9 @@
 		
 		if (!errorBool) {
 			
-			for (NSDictionary *visitLoc in driverDic) {
-				[_optimizedVisitLocations addObject:visitLoc];
-			}
+			//for (NSDictionary *visitLoc in driverDic) {
+				//[_optimizedVisitLocations addObject:visitLoc];
+			//}
 			
 			//[[NSNotificationCenter defaultCenter]postNotificationName:@"routeOptimized" object:nil];
 			
@@ -529,12 +528,21 @@
 						     NSJSONWritingPrettyPrinted|
 						     NSJSONReadingMutableLeaves
 												  error:&error];
+        
+        if ([responseDic isEqual:[NSNull null]]) {
+            for (id item in responseDic) {
+                if ([item isKindOfClass:[NSString class]]) {
+                    NSString *itemString = (NSString*)item;
+                    NSLog(@"item: %@", itemString);
+                }
+            }
+        }
 		
-		NSDictionary *solutionDic = [responseDic objectForKey:@"solution"];
-		NSArray *driverDic = [solutionDic objectForKey:@"driver_1"];
-		for (NSDictionary *visitLoc in driverDic) {
+		//NSDictionary *solutionDic = [responseDic objectForKey:@"solution"];
+		//NSArray *driverDic = [solutionDic objectForKey:@"driver_1"];
+		/*for (NSDictionary *visitLoc in driverDic) {
 			[_optimizedVisitLocations addObject:visitLoc];
-		}
+		}*/
 		//NSLog(@"%@",responseDic);
 		//[[NSNotificationCenter defaultCenter]postNotificationName:@"routeOptimized" object:nil];
 		
@@ -559,34 +567,34 @@
 -(void)displayRouteOptimize {
  
 	
-	NSMutableArray *visitCoords = [[NSMutableArray alloc]init];
+	//NSMutableArray *visitCoords = [[NSMutableArray alloc]init];
 	
-	for (VisitDetails *visit in _sharedInstance.visitData) {
+	/*for (VisitDetails *visit in _sharedInstance.visitData) {
 		NSMutableDictionary *visitInfo = [[NSMutableDictionary alloc]init];
 		[visitInfo setObject:visit.latitude forKey:@"lat"];
 		[visitInfo setObject:visit.longitude forKey:@"lng"];
 		[visitInfo setObject:visit.appointmentid forKey:@"visitID"];
 		[visitCoords addObject:visitInfo];
-	}
+	}*/
 	
 	
-	_totalNumCoordinates = (int)[_optimizedVisitLocations count]-1;
+	//_totalNumCoordinates = (int)[_optimizedVisitLocations count]-1;
 	
-	for (int i = 0; i < [_optimizedVisitLocations count]-1; i++) {
+	//for (int i = 0; i < [_optimizedVisitLocations count]-1; i++) {
 		//NSLog(@"locations: %lu, index val: %i",(unsigned long)[_optimizedVisitLocations count],i);
 		
-		NSDictionary *routeItemBeg = [_optimizedVisitLocations objectAtIndex:i];
+		//NSDictionary *routeItemBeg = [_optimizedVisitLocations objectAtIndex:i];
 		
-		if (i == [_optimizedVisitLocations count]-1) {
+		//if (i == [_optimizedVisitLocations count]-1) {
 			
 			//NSLog(@"Route End");
 			
-		} else {
+		//} else {
 			
-			_totalNumCoordinates--;
+			//_totalNumCoordinates--;
 			//NSLog(@"num coord: %i",_totalNumCoordinates);
 			
-			NSDictionary *routeItemDest = [_optimizedVisitLocations objectAtIndex:i+1];
+			/*NSDictionary *routeItemDest = [_optimizedVisitLocations objectAtIndex:i+1];
 			
 			NSString *visitID = [routeItemBeg objectForKey:@"location_name"];
 			NSString *visitIDEnd = [routeItemDest objectForKey:@"location_name"];
@@ -604,29 +612,29 @@
 				} else if ([visitID isEqualToString:@"Home"]) {
 					begCoord = _sitterAddress;
 				}
-			}
+			}*/
 			
-			for (NSDictionary *visitDetails in visitCoords) {
+			/*for (NSDictionary *visitDetails in visitCoords) {
 				NSString *matchVisitID = [visitDetails objectForKey:@"visitID"];
 				
 				if([visitIDEnd isEqualToString:matchVisitID]){
 					
 					endCoord = CLLocationCoordinate2DMake([[visitDetails objectForKey:@"lat"]floatValue], [[visitDetails objectForKey:@"lng"]floatValue]);
 					
-				}
+				}*/
 			}
 			
-			if (i==0) {
+			/*if (i==0) {
 				
-				begCoord = _sitterAddress;
+				//begCoord = _sitterAddress;
 				
 			} else if (i == [_optimizedVisitLocations count]-1) {
-				endCoord = _sitterAddress;
+				//endCoord = _sitterAddress;
 				
 			} else {
-				begCoord = _sitterAddress;
-				endCoord = _sitterAddress;
-			}
+				//begCoord = _sitterAddress;
+				//endCoord = _sitterAddress;
+			}*/
 
 			/*
 			MKPlacemark *placeBegin = [[MKPlacemark alloc]initWithCoordinate:begCoord addressDictionary:nil];
@@ -656,11 +664,11 @@
 						
 					}
 				}
-			}];*/
+			}];
 		}
 	}
 }
-
+*/
 
 
 @end

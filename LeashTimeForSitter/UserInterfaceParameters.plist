@@ -1,14 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-   UserInterfaceParameters.plist
-   LeashTimeForSitter
-
-   Created by Edward Hooban on 10/19/19.
-   Copyright (c) 2019 Ted Hooban. All rights reserved.
--->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-    <dict>
-    
-    </dict>
+<dict>
+	<key>cellHeight</key>
+	<string>70</string>
+	<key>petPhotoHeight</key>
+	<string>60</string>
+	<key>petPhotoWidth</key>
+	<string>60</string>
+	<key>visitInfoViewHeight</key>
+	<string>120</string>
+	<key>photoViewHeight</key>
+	<string>60</string>
+	<key>moodButtonViewHeight</key>
+	<string>60</string>
+	<key>completeViewHeight</key>
+	<string>60</string>
+	<key>arriveViewHeight</key>
+	<string>60</string>
+	<key>imageAssets</key>
+	<dict>
+		<key>arrive</key>
+		<string>beginWalk</string>
+		<key>complete</key>
+		<string>markCompleteBtn</string>
+		<key>sendVisitReport</key>
+		<string>longSendVisitReport</string>
+		<key>mapIcon</key>
+		<string></string>
+		<key>takePhotoIcon</key>
+		<string></string>
+		<key>backButton</key>
+		<string></string>
+		<key>moodButtonIcon</key>
+		<string></string>
+		<key>visitNoteIcon</key>
+		<string></string>
+		<key>saveCloseButton</key>
+		<string>saveButton</string>
+	</dict>
+</dict>
 </plist>

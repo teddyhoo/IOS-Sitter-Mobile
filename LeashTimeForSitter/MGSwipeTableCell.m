@@ -152,8 +152,8 @@
         }
         [_container addSubview:_expansionBackground];
         
-        CGFloat duration = _fromLeft ? _cell.leftExpansion.animationDuration : _cell.rightExpansion.animationDuration;
-        [UIView animateWithDuration: duration animations:^{
+        //CGFloat duration = _fromLeft ? _cell.leftExpansion.animationDuration : _cell.rightExpansion.animationDuration;
+        /*[UIView animateWithDuration: duration animations:^{
             _expandedButton.hidden = NO;
             if (_fromLeft) {
                 _expandedButton.frame = CGRectMake(_container.bounds.size.width - _expandedButton.bounds.size.width, 0, _expandedButton.bounds.size.width, _expandedButton.bounds.size.height);
@@ -166,7 +166,7 @@
             _expansionBackground.frame = [self expansionBackgroundRect:_expandedButton];
 
         } completion:^(BOOL finished) {
-        }];
+        }];*/
         return;
     }
     [self layoutExpansion:offset];
@@ -184,9 +184,9 @@
         _expandedButton = nil;
         CGFloat duration = _fromLeft ? _cell.leftExpansion.animationDuration : _cell.rightExpansion.animationDuration;
         [UIView animateWithDuration: animated ? duration : 0.0 animations:^{
-            _container.frame = self.bounds;
+            /*self->_container.frame = self.bounds;
             [self resetButtons];
-            _expansionBackgroundAnimated.frame = [self expansionBackgroundRect:_expandedButtonAnimated];
+            _expansionBackgroundAnimated.frame = [self expansionBackgroundRect:_expandedButtonAnimated];*/
         } completion:^(BOOL finished) {
             [_expansionBackgroundAnimated removeFromSuperview];
         }];
@@ -384,14 +384,18 @@ typedef struct MGSwipeAnimationData {
 {
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
+        //NSLog(@"init MGSwipeTableCell");
         [self initViews:YES];
     }
     return self;
 }
 
+
 - (id)initWithCoder:(NSCoder*)aDecoder
 {
     if(self = [super initWithCoder:aDecoder]) {
+        //NSLog(@"init MGSwipeTableCell with coder");
+
         [self initViews:YES];
     }
     return self;
@@ -414,6 +418,7 @@ typedef struct MGSwipeAnimationData {
         _rightExpansion = [[MGSwipeExpansionSettings alloc] init];
     }
     _panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(panHandler:)];
+    
     [self addGestureRecognizer:_panRecognizer];
     _panRecognizer.delegate = self;
     _activeExpansion = nil;
@@ -626,6 +631,8 @@ typedef struct MGSwipeAnimationData {
 
 -(UIView *) hitTest:(CGPoint)point withEvent:(UIEvent *)event
 {
+    //NSLog(@"hit test with event: %@", event);
+
     if (_swipeOverlay && !_swipeOverlay.hidden) {
         //override hitTest to give swipe buttons a higher priority (diclosure buttons can steal input)
         UIView * targets[] = {_leftView, _rightView};
@@ -711,6 +718,9 @@ typedef struct MGSwipeAnimationData {
 
 -(void) updateState: (MGSwipeState) newState;
 {
+    
+    //NSLog(@"update state");
+
     if (!_triggerStateChanges || _swipeState == newState) {
         return;
     }
@@ -781,6 +791,8 @@ typedef struct MGSwipeAnimationData {
 
 -(void) updateSwipe: (CGFloat) offset
 {
+    //NSLog(@"update swipe");
+
     bool allowed = offset > 0 ? _allowSwipeLeftToRight : _allowSwipeRightToLeft;
     UIView * buttons = offset > 0 ? _leftView : _rightView;
     if (!buttons || ! allowed) {
@@ -796,6 +808,8 @@ typedef struct MGSwipeAnimationData {
 
 -(void) showSwipe: (MGSwipeDirection) direction animated: (BOOL) animated
 {
+    NSLog(@"show swipe");
+
     [self createSwipeViewIfNeeded];
     _allowSwipeLeftToRight = _leftButtons.count > 0;
     _allowSwipeRightToLeft = _rightButtons.count > 0;
@@ -856,11 +870,15 @@ typedef struct MGSwipeAnimationData {
 
 -(void) tapHandler: (UITapGestureRecognizer *) recognizer
 {
+    NSLog(@"tap handler");
+
     [self hideSwipeAnimated:YES];
 }
 
 -(void) panHandler: (UIPanGestureRecognizer *)gesture
 {
+    //NSLog(@"pan handler");
+
     CGPoint current = [gesture translationInView:self];
     
     if (gesture.state == UIGestureRecognizerStateBegan) {
@@ -899,6 +917,8 @@ typedef struct MGSwipeAnimationData {
 }
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    
+    //NSLog(@"gesture recognizer begin");
     
     if (gestureRecognizer == _panRecognizer) {
         
@@ -942,7 +962,9 @@ typedef struct MGSwipeAnimationData {
 }
 
 -(BOOL) isSwipeGestureActive
-{
+{    
+    //NSLog(@"swipe gesture is active");
+
     return _panRecognizer.state == UIGestureRecognizerStateBegan || _panRecognizer.state == UIGestureRecognizerStateChanged;
 }
 

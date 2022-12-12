@@ -7,10 +7,18 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <MapKit/MapKit.h>
+#import <UIKit/UIKit.h>
+#import "VisitDetails.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface VisitProgressMapView : NSObject
+@interface VisitProgressMapView : UIView <MKMapViewDelegate>
+
+
+-(void)addVisitInfo:(VisitDetails*)visitInfo;
+-(void)removeDelegate;
+-(void)drivingDirections:(id)sender;
 
 @end
 
